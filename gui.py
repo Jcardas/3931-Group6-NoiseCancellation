@@ -97,25 +97,27 @@ class NoiseCancellerGUI:
     ## -- FILE SELECTION HANDLERS -- ##
     def _select_input_file(self):
         file = filedialog.askopenfilename(
-            title="Select Input Audio",
-            filetypes=[("Audio Files", "*.wav *.mp3 *.ogg *.flac *.aac")]
+            title="Select Input Audio (.wav)",
+            filetypes=[("Audio Files", "*.wav")]
         )
         if file:
             self.input_file = file
             self.input_label_var.set(file.split("/")[-1])
             self.input_card.configure(highlightbackground=COLOR_BUTTON)
-            messagebox.showinfo("Selected", f"Input Audio:\n{file}")
+            import os
+            messagebox.showinfo("Selected", f"Input Audio: {os.path.basename(file)}")
 
     def _select_noise_file(self):
         file = filedialog.askopenfilename(
-            title="Select Noise Sample",
-            filetypes=[("Audio Files", "*.wav *.mp3 *.ogg *.flac *.aac")]
+            title="Select Noise Sample (.wav)",
+            filetypes=[("Audio Files", "*.wav")]
         )
         if file:
             self.noise_file = file
             self.noise_label_var.set(file.split("/")[-1])
             self.noise_card.configure(highlightbackground=COLOR_BUTTON)
-            messagebox.showinfo("Selected", f"Noise Sample:\n{file}")
+            import os
+            messagebox.showinfo("Selected", f"Noise Sample: {os.path.basename(file)}")
             
     ## -- PROCESSING HANDLER -- ##
     def _process_files(self):
@@ -131,7 +133,7 @@ class NoiseCancellerGUI:
                 noise_path=self.noise_file
             )
 
-            messagebox.showinfo("ERR", f"Noise not cancelled!\nNot saved to:{output_path} \n(ERR: Not implemented yet!)")
+            messagebox.showinfo("Success", f"Noise cancelled!\nSaved to: {output_path}")
 
         except Exception as e:
-            messagebox.showerror("Processing Error (Processing not implemented)", str(e))
+            messagebox.showerror("Processing Error\n\n", str(e))
