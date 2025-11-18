@@ -25,7 +25,7 @@ import processing
 # Color palette
 COLOR_BUTTON = "#4A90E2"  # Blue for buttons/active states
 COLOR_BUTTON2 = "#1EB73F"  # Darker blue for hover/active
-COLOR_BACKGROUND = "#EFEFEF"  # Light grey background
+COLOR_BACKGROUND = "#AF7D7D"  # Light grey background
 COLOR_CARD_BACKGROUND = "#FFFFFF"  # White for boxes
 COLOR_TEXT = "#000000"  # Black text
 
@@ -70,7 +70,7 @@ class NoiseCancellerGUI:
         self.input_label = tk.Label(input_inner, textvariable=self.input_label_var, font=("TkDefaultFont", 18))
         self.input_label.pack(pady=5)
         Button(self.input_card, text="Select File", bg=COLOR_BUTTON, fg=COLOR_TEXT, relief="flat", highlightbackground="white",
-                    command=self._select_input_file).pack(side="bottom", pady=10)
+                    command=self._select_input_file, cursor="hand").pack(side="bottom", pady=10)
         
         # Noise Audio Box
         self.noise_card = tk.Frame(row_frame, bg=COLOR_CARD_BACKGROUND, height=250, width=250, highlightthickness=2, highlightbackground=COLOR_CARD_BACKGROUND)
@@ -84,15 +84,15 @@ class NoiseCancellerGUI:
         self.noise_label = tk.Label(noise_inner, textvariable=self.noise_label_var, font=("TkDefaultFont", 18))
         self.noise_label.pack(pady=5)
         Button(self.noise_card, text="Select Noise", bg=COLOR_BUTTON, fg=COLOR_TEXT, relief="flat", highlightbackground="white",
-                    command=self._select_noise_file).pack(side="bottom", pady=10)
+                    command=self._select_noise_file, cursor="hand").pack(side="bottom", pady=10)
         
         # Cancel Noise Box (Tkinter has an issue with button styling, so this box is a workaround)
-        cancel_card = tk.Frame(main_frame, bg="white", height=20, width=100)
+        cancel_card = tk.Frame(main_frame, bg="red", height=20, width=100)
         cancel_card.pack(side="bottom", pady=20)
         cancel_card.pack_propagate(False)
 
         Button(cancel_card, text="Cancel Noise", bg=COLOR_BUTTON2, fg=COLOR_TEXT, relief="flat", highlightbackground=COLOR_BACKGROUND,
-                    command=self._process_files).pack(expand=True)
+                    command=self._process_files, cursor="hand").pack(expand=True)
       
     ## -- FILE SELECTION HANDLERS -- ##
     def _select_input_file(self):
