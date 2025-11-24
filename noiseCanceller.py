@@ -8,7 +8,7 @@ and then process them to remove background noise.
 
 import customtkinter as ctk
 from tkinter import filedialog, messagebox, PhotoImage
-import processing
+import functionality.processing as processing
 import os
 
 # --- Constants ---
