@@ -1,83 +1,75 @@
 ''' 
-Contains all processing code. 
+Processes the input audio with the noise file to remove noise.
 
-Responsibilities:
-  - Reading input and noise audio files
-  - Performing noise cancellation / filtering
-  - Returning processed audio to the GUI
-  - Saving processed audio to disk
+Performs a STFT on the input using the noise. Then normalizes the audio
+and outputs it to the Downloads folder.
 '''
 
+import numpy as np
+from scipy.io import wavfile
+from scipy import signal
+import os
+
+def _to_mono_and_float(rate, data):
+    '''
+    Converts audio data to mono and float format for processing.
+    e.g: we perform the STFT on one signal only, instead of both channels in a stereo signal.
+    '''
+    # If stereo, average the channels
+    if data.ndim > 1:
+        data = data.mean(axis=1)
+    # Convert to float
+    if np.issubdtype(data.dtype, np.integer):
+        # Get the maximum possible value for the integer type
+        max_val = np.iinfo(data.dtype).max
+        data = data.astype(np.float32) / max_val
+    return data
+
 def cancel_noise(input_path, noise_path):
-  import numpy as np
-  from scipy.io import wavfile
-  import os
+    '''
+    Reduces noise from an audio file using spectral subtraction (STFT)
 
- # This all doesnt work very good.
+    Learn more at this link
+    https://www.dsprelated.com/freebooks/sasp/Short_Time_Fourier_Transform.html
 
-  # Load the audio files
-  input_rate, input_data = wavfile.read(input_path)
-  noise_rate, noise_data = wavfile.read(noise_path)
+    :param input_path: Path to the noisy audio file (.wav).
+    :param noise_path: Path to the audio file containing a sample of the noise (.wav).
+    :return: The path to the cleaned output audio file.
+    '''
+    # Step 1. Load the audio files and convert to a processable format (mono, float)
+    input_rate, input_data = wavfile.read(input_path)
+    noise_rate, noise_data = wavfile.read(noise_path)
 
-  # Checking sample rate of each file
-  if noise_rate != input_rate:
-      raise ValueError("Input and noise sample rates do not match.")
+    if input_rate != noise_rate:
+        raise ValueError("Input and noise audio must have the same sample rate.")
 
-  # Take a window of noise data if it's longer than input
-  min_len = min(len(input_data), len(noise_data))
-  input_data = input_data[:min_len]
-  noise_data = noise_data[:min_len]
+    input_data_float = _to_mono_and_float(input_rate, input_data)
+    noise_data_float = _to_mono_and_float(noise_rate, noise_data)
 
-  # Apply a Hann window to isolate a clean noise sample
-  hann_window = np.hanning(min_len)
-  noise_data = noise_data * hann_window
+    # Step 2. Perform STFT on both signals
+    # TODO: manually perform STFT
+    _, _, Zxx_input = signal.stft(input_data_float, fs=input_rate)
+    _, _, Zxx_noise = signal.stft(noise_data_float, fs=input_rate)
 
-  # Perform FFT on both signals
-  input_fft = np.fft.rfft(input_data, axis=0)
-  noise_fft = np.fft.rfft(noise_data, axis=0)
+    # Step 3. Create noise profile (mean magnitude of noise frequency spectrum)
+    noise_profile = np.mean(np.abs(Zxx_noise), axis=1, keepdims=True)
 
-  # --- Wiener Filter Noise Reduction (best for background noise) ---
+    # Step 4. Subtract noise profile from input signal (spectral subtraction)
+    mag_input = np.abs(Zxx_input)
+    phase_input = np.angle(Zxx_input)
+    mag_denoised = np.maximum(0, mag_input - noise_profile) # Use maximum to avoid negative values
+    Zxx_denoised = mag_denoised * np.exp(1j * phase_input)
 
-  # Magnitudes and phase
-  input_mag = np.abs(input_fft)
-  noise_mag = np.abs(noise_fft)
-  input_phase = np.angle(input_fft)
+    # Step 5. Perform Inverse STFT to get back to the time domain
+    _, cleaned_data_float = signal.istft(Zxx_denoised, fs=input_rate)
 
-  # Power spectral densities
-  input_psd = input_mag ** 2
-  noise_psd = noise_mag ** 2
+    # Step 6. Normalize the output audio and convert to 16-bit integer for saving
+    cleaned_data = np.int16(cleaned_data_float / np.max(np.abs(cleaned_data_float)) * 32767)
 
-  # Avoid division by zero
-  noise_psd = np.maximum(noise_psd, 1e-12)
+    # Step 7. Save processed audio to Downloads folder with prefix "cleaned_"
+    downloads_folder = os.path.expanduser("~/Downloads")
+    input_filename = os.path.basename(input_path)
+    output_file_path = os.path.join(downloads_folder, f"cleaned_{input_filename}")
+    wavfile.write(output_file_path, input_rate, cleaned_data)
 
-  # Compute Wiener gain: G = SNR / (SNR + 1)
-  snr = np.maximum(input_psd / noise_psd - 1, 0)
-  gain = snr / (snr + 1)
-
-  # Apply smoothing to avoid artifacts
-  gain = 0.8 * gain + 0.2 * np.clip(gain, 0.1, 1.0)
-
-  # Apply gain to magnitude
-  cleaned_mag = gain * input_mag
-
-  # Reconstruct FFT
-  cleaned_fft = cleaned_mag * np.exp(1j * input_phase)
-
-  # Reconstruct the audio with inverse FFT
-  cleaned_data = np.fft.irfft(cleaned_fft, n=min_len, axis=0)
-
-  # Normalize cleaned audio to prevent clipping / extreme loudness
-  max_val = np.max(np.abs(cleaned_data))
-  if max_val > 0:
-      cleaned_data = cleaned_data / max_val  # scale to -1..1 range
-      cleaned_data = (cleaned_data * 0.8 * 32767).astype(np.int16)  # safe headroom
-  else:
-      cleaned_data = cleaned_data.astype(np.int16)
-
-  # Save processed audio to Downloads folder with prefix "cleaned_"
-  downloads_folder = os.path.expanduser("~/Downloads")
-  input_filename = os.path.basename(input_path)
-  output_file_path = os.path.join(downloads_folder, f"cleaned_{input_filename}")
-  wavfile.write(output_file_path, input_rate, cleaned_data)
-
-  return output_file_path
+    return output_file_path

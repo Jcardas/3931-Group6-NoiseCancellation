@@ -163,6 +163,8 @@ class NoiseCancellerApp(ctk.CTk):
         try:
             # Pass the file paths to the backend processing function
             output_path = processing.cancel_noise(
+                # This calls to processing.py cancel_noise() which returns the path to where the output is saved.
+                # It passes in the input wav file, and the input noise file.
                 input_path=self.input_file,
                 noise_path=self.noise_file
             )
