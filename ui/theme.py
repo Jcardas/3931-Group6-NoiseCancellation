@@ -1,0 +1,10 @@
+'''
+This file contains theme constants for the UI, such as colors and fonts.
+By centralizing them here, we can easily update the application's appearance.
+'''
+
+COLOR_BUTTON = "#4A90E2"
+COLOR_BUTTON_HOVER = "#7CAEE6"
+COLOR_BACKGROUND = "#E3E3E3"
+COLOR_CARD_BACKGROUND = "#FFFFFF"
+COLOR_TEXT = "#000000"
