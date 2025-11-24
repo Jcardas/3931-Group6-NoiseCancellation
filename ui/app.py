@@ -9,6 +9,7 @@ import functionality.processing as processing
 
 # Import the pages
 from ui.file_selection_page import FileSelectionPage
+from ui.output_editor_page import OutputEditorPage
 from ui.theme import COLOR_BACKGROUND
 
 # --- Main Application Class ---
@@ -25,7 +26,7 @@ class App(ctk.CTk):
         super().__init__()
 
         # --- Window Setup ---
-        self.title("Noise Canceller (CTk Version)")
+        self.title("Noise Canceller")
         self.geometry("650x520")
         ctk.set_appearance_mode("light")
         self.configure(fg_color=COLOR_BACKGROUND)
@@ -48,6 +49,11 @@ class App(ctk.CTk):
         # Create an instance of the file selection page
         page = FileSelectionPage(parent=container, controller=self)
         self.pages[FileSelectionPage] = page
+        page.grid(row=0, column=0, sticky="nsew")
+
+        # Create an instance of the output editor page
+        page = OutputEditorPage(parent=container, controller=self)
+        self.pages[OutputEditorPage] = page
         page.grid(row=0, column=0, sticky="nsew")
 
         # --- Show the initial page ---
@@ -77,10 +83,8 @@ class App(ctk.CTk):
             # Show success message with the output file path
             messagebox.showinfo("Success", f"Noise cancelled!\nSaved to: {output_path}")
 
-            # --- THIS IS WHERE YOU WILL SWITCH TO THE EDITOR PAGE ---
-            # 1. Create the editor page if it doesn't exist
-            # 2. Pass the output_path to the editor page
-            # 3. Call self.show_page(OutputEditorPage)
+            self.show_page(OutputEditorPage)
+
 
         except Exception as e:
             # Show a detailed error message if something goes wrong
