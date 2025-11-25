@@ -48,8 +48,8 @@ def cancel_noise(input_path, noise_path):
 
     # Step 2. Perform STFT on both signals
     # TODO: manually perform STFT
-    _, _, Zxx_input = signal.stft(input_data_float, fs=input_rate)
-    _, _, Zxx_noise = signal.stft(noise_data_float, fs=input_rate)
+    f, t, Zxx_input = signal.stft(input_data_float, fs=input_rate)
+    _, _, Zxx_noise = signal.stft(noise_data_float, fs=input_rate) # We only need the magnitude from this
 
     # Step 3. Create noise profile (mean magnitude of noise frequency spectrum)
     noise_profile = np.mean(np.abs(Zxx_noise), axis=1, keepdims=True)

@@ -27,7 +27,7 @@ class App(ctk.CTk):
 
         # --- Window Setup ---
         self.title("Noise Canceller")
-        self.geometry("650x520")
+        self.geometry("750x520")
         ctk.set_appearance_mode("light")
         self.configure(fg_color=COLOR_BACKGROUND)
 
@@ -35,6 +35,7 @@ class App(ctk.CTk):
         # These variables will store the paths to the selected audio files.
         self.input_file = None
         self.noise_file = None
+        self.output_file = None
 
         # --- Container for Pages ---
         # This frame will hold the different pages of the application.
@@ -65,6 +66,10 @@ class App(ctk.CTk):
         :param page_class: The class of the page to show.
         '''
         page = self.pages[page_class]
+        # If the page has an 'on_show' method, call it.
+        if hasattr(page, "on_show"):
+            page.on_show()
+
         page.tkraise()
 
     def process_files(self):
@@ -80,8 +85,11 @@ class App(ctk.CTk):
                 input_path=self.input_file,
                 noise_path=self.noise_file
             )
+            # Store the output path in the controller
+            self.output_file = output_path
+
             # Show success message with the output file path
-            messagebox.showinfo("Success", f"Noise cancelled!\nSaved to: {output_path}")
+            messagebox.showinfo("Success", f"Noise cancelled!\nSaved to: {self.output_file}")
 
             self.show_page(OutputEditorPage)
 
