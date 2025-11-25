@@ -32,7 +32,7 @@ def create_live_freq_domain_graphs(master, stft_freq):
         # Initial empty data
         initial_data = np.full_like(stft_freq, -100) # Start at -100 dB
 
-        # Plot both lines on the same axis
+        # Plot all three lines on the same axis
         line1, = ax.plot(stft_freq, initial_data, color=COLOR_GRAPH, label='Original Signal')
         line2, = ax.plot(stft_freq, initial_data, color=COLOR_ALT_GRAPH, label='Cleaned Signal')
         line3, = ax.plot(stft_freq, initial_data, color=COLOR_NOISE_GRAPH, label='Noise Signal')
