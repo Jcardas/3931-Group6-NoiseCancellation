@@ -171,10 +171,14 @@ class OutputEditorPage(ctk.CTkFrame):
             # Get the frequency data for this time slice
             original_mag = results["original_stft_mag_db"][:, time_index]
             cleaned_mag = results["cleaned_stft_mag_db"][:, time_index]
+            noise_mag = results["noise_stft_mag_db"] # Noise profile is constant over time
+
 
             # Update the plot lines
             self.graph_elements["line1"].set_ydata(original_mag)
             self.graph_elements["line2"].set_ydata(cleaned_mag)
+            self.graph_elements["line3"].set_ydata(noise_mag)
+
 
             # Redraw the canvas
             self.graph_elements["canvas"].draw()
