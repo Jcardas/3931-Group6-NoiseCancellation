@@ -109,7 +109,7 @@ class OutputEditorPage(ctk.CTkFrame):
 
         if self.controller.processing_results:
             # Update the card title with the output file name
-            self.input_label.configure(text=os.path.basename(self.controller.output_file))
+            self.input_label.configure(text=os.path.basename(self.controller.processing_results["output_path"]))
 
             # Call the function from graphing.py to create the graph
             self.graph_elements = create_live_freq_domain_graphs(self.graph_frame, self.controller.processing_results["stft_freq"])

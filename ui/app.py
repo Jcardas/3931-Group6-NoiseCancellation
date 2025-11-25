@@ -87,11 +87,10 @@ class App(ctk.CTk):
                 noise_path=self.noise_file
             )
             # Store the results in the controller
-            self.output_file = results["output_path"]
             self.processing_results = results
 
             # Show success message with the output file path
-            messagebox.showinfo("Success", f"Noise cancelled!\nSaved to: {self.output_file}")
+            messagebox.showinfo("Success", f"Noise cancelled!\nSaved to: {self.processing_results["output_path"]}")
 
             self.show_page(OutputEditorPage)
 

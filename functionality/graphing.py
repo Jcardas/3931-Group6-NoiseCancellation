@@ -43,7 +43,7 @@ def create_live_freq_domain_graphs(master, stft_freq):
         ax.set_facecolor(COLOR_CARD_BACKGROUND)
         ax.grid(True, color=COLOR_GRAPH, linestyle=':')
         ax.tick_params(colors=COLOR_TEXT)
-        ax.set_ylim(-175, 20) # Set a reasonable dB range
+        ax.set_ylim(-80, 20) # Set a more practical dB range
 
         # Custom formatter for the x-axis to show Hz/kHz
         def freq_formatter(x, pos):
