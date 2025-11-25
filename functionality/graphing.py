@@ -24,7 +24,7 @@ def create_live_freq_domain_graphs(master, stft_freq):
     :return: A dictionary containing the canvas widget, figure, axes, and line objects.
     '''
     try:
-        # Create a figure with 2 subplots
+        # Create a figure with 3 subplots (input, cleaned, and noise)
         fig, ax = plt.subplots(1, 1, figsize=(7, 6))
         fig.patch.set_facecolor(COLOR_BACKGROUND)
         fig.tight_layout(pad=4.0)
@@ -35,6 +35,7 @@ def create_live_freq_domain_graphs(master, stft_freq):
         # Plot both lines on the same axis
         line1, = ax.plot(stft_freq, initial_data, color=COLOR_GRAPH, label='Original Signal')
         line2, = ax.plot(stft_freq, initial_data, color=COLOR_ALT_GRAPH, label='Cleaned Signal')
+        line3, = ax.plot(stft_freq, initial_data, color=COLOR_NOISE_GRAPH, label='Noise Signal')
 
         ax.set_title("Live Frequency Spectrum", color=COLOR_TEXT)
         ax.set_xscale('log')
@@ -57,7 +58,8 @@ def create_live_freq_domain_graphs(master, stft_freq):
         canvas = FigureCanvasTkAgg(fig, master=master)
         canvas.draw()
 
-        return {"canvas_widget": canvas.get_tk_widget(), "fig": fig, "ax": ax, "line1": line1, "line2": line2, "canvas": canvas}
+        return {"canvas_widget": canvas.get_tk_widget(), "fig": fig, "ax": ax, "line1": line1, "line2": line2, "line3": line3, "canvas": canvas}
+    
     except Exception as e:
         print(f"Error creating graph: {e}")
         error_label = ctk.CTkLabel(master, text=f"Could not load graph:\n{e}", text_color="red")

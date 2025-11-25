@@ -78,8 +78,11 @@ def cancel_noise(input_path, noise_path):
         "sample_rate": input_rate,
         "original_audio": input_data_float,
         "cleaned_audio": cleaned_data_float,
+        "noise_audio": noise_data_float,
         "stft_freq": f,
         "stft_time": t,
         "original_stft_mag_db": 20 * np.log10(mag_input + 1e-9),
-        "cleaned_stft_mag_db": 20 * np.log10(mag_denoised + 1e-9)
+        "cleaned_stft_mag_db": 20 * np.log10(mag_denoised + 1e-9),
+        "noise_stft_mag_db": 20 * np.log10(noise_profile + 1e-9)
+    
     }
