@@ -11,51 +11,53 @@ from scipy.fft import rfft, rfftfreq
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib import pyplot as plt
+from matplotlib import ticker
 import customtkinter as ctk
 
 
-def create_freq_domain_graph(master, audio_path):
+def create_live_freq_domain_graphs(master, stft_freq):
     '''
-    Creates a frequency domain plot of an audio file and returns it as a Tkinter widget.
+    Creates a figure with two subplots for live frequency visualization.
 
     :param master: The parent customtkinter widget.
-    :param audio_path: The path to the .wav audio file.
-    :return: A Tkinter widget containing the matplotlib plot.
+    :param stft_freq: The array of frequency bins from the STFT.
+    :return: A dictionary containing the canvas widget, figure, axes, and line objects.
     '''
     try:
-        # 1. Read the audio file
-        samplerate, data = wavfile.read(audio_path)
-        # If stereo, take one channel
-        if data.ndim > 1:
-            data = data[:, 0]
-        
-        # 2. Perform FFT
-        n_points = len(data)
-        yf = rfft(data)
-        xf = rfftfreq(n_points, 1 / samplerate)
-
-        # 3. Create a Matplotlib figure and axes
-        fig = Figure(figsize=(6, 4), dpi=100)
+        # Create a figure with 2 subplots
+        fig, ax = plt.subplots(1, 1, figsize=(7, 6))
         fig.patch.set_facecolor(COLOR_BACKGROUND)
-        ax = fig.add_subplot(111)
-        ax.set_facecolor(COLOR_CARD_BACKGROUND)
+        fig.tight_layout(pad=4.0)
 
-        # 4. Plot the data
-        yf_abs = np.abs(yf)
-        db_magnitude = 20 * np.log10(yf_abs + 1e-9) # Add epsilon to avoid log10(0)
-        ax.plot(xf, db_magnitude, color=COLOR_BUTTON)
-        ax.set_xscale('log') # Use a logarithmic scale for frequency
-        ax.set_title("Frequency Domain", color=COLOR_TEXT)
-        ax.set_xlabel("Frequency (Hz)", color=COLOR_TEXT)
+        # Initial empty data
+        initial_data = np.full_like(stft_freq, -100) # Start at -100 dB
+
+        # Plot both lines on the same axis
+        line1, = ax.plot(stft_freq, initial_data, color=COLOR_GRAPH, label='Original Signal')
+        line2, = ax.plot(stft_freq, initial_data, color=COLOR_ALT_GRAPH, label='Cleaned Signal')
+
+        ax.set_title("Live Frequency Spectrum", color=COLOR_TEXT)
+        ax.set_xscale('log')
         ax.set_ylabel("Magnitude (dB)", color=COLOR_TEXT)
-        ax.grid(True, color=COLOR_BUTTON_HOVER, linestyle='--')
-        ax.tick_params(axis='x', colors=COLOR_TEXT)
-        ax.tick_params(axis='y', colors=COLOR_TEXT)
+        ax.set_xlabel("Frequency (Hz)", color=COLOR_TEXT)
+        ax.set_facecolor(COLOR_CARD_BACKGROUND)
+        ax.grid(True, color=COLOR_GRAPH, linestyle=':')
+        ax.tick_params(colors=COLOR_TEXT)
+        ax.set_ylim(-175, 20) # Set a reasonable dB range
 
-        # 5. Create and return the canvas widget
+        # Custom formatter for the x-axis to show Hz/kHz
+        def freq_formatter(x, pos):
+            if x >= 1000:
+                return f'{int(x/1000)} k'
+            return f'{int(x)}'
+        ax.xaxis.set_major_formatter(ticker.FuncFormatter(freq_formatter))
+
+        ax.legend()
+
         canvas = FigureCanvasTkAgg(fig, master=master)
         canvas.draw()
-        return canvas.get_tk_widget()
+
+        return {"canvas_widget": canvas.get_tk_widget(), "fig": fig, "ax": ax, "line1": line1, "line2": line2, "canvas": canvas}
     except Exception as e:
         print(f"Error creating graph: {e}")
         error_label = ctk.CTkLabel(master, text=f"Could not load graph:\n{e}", text_color="red")

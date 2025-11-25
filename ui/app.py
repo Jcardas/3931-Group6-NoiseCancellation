@@ -36,6 +36,7 @@ class App(ctk.CTk):
         self.input_file = None
         self.noise_file = None
         self.output_file = None
+        self.processing_results = None # Will hold the dict from processing
 
         # --- Container for Pages ---
         # This frame will hold the different pages of the application.
@@ -81,12 +82,13 @@ class App(ctk.CTk):
         # --- Call Processing Logic ---
         try:
             # Pass the file paths to the backend processing function
-            output_path = processing.cancel_noise(
+            results = processing.cancel_noise(
                 input_path=self.input_file,
                 noise_path=self.noise_file
             )
-            # Store the output path in the controller
-            self.output_file = output_path
+            # Store the results in the controller
+            self.output_file = results["output_path"]
+            self.processing_results = results
 
             # Show success message with the output file path
             messagebox.showinfo("Success", f"Noise cancelled!\nSaved to: {self.output_file}")

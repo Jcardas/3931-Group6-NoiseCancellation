@@ -72,4 +72,14 @@ def cancel_noise(input_path, noise_path):
     output_file_path = os.path.join(downloads_folder, f"cleaned_{input_filename}")
     wavfile.write(output_file_path, input_rate, cleaned_data)
 
-    return output_file_path
+    # Return a dictionary with all necessary data for playback and visualization
+    return {
+        "output_path": output_file_path,
+        "sample_rate": input_rate,
+        "original_audio": input_data_float,
+        "cleaned_audio": cleaned_data_float,
+        "stft_freq": f,
+        "stft_time": t,
+        "original_stft_mag_db": 20 * np.log10(mag_input + 1e-9),
+        "cleaned_stft_mag_db": 20 * np.log10(mag_denoised + 1e-9)
+    }
