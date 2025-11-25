@@ -25,7 +25,7 @@ def _to_mono_and_float(rate, data):
         data = data.astype(np.float32) / max_val
     return data
 
-def cancel_noise(input_path, noise_path):
+def cancel_noise(input_path, noise_path, use_highpass=False, highpass_cutoff=200):
     '''
     Reduces noise from an audio file using spectral subtraction (STFT)
 
@@ -34,6 +34,8 @@ def cancel_noise(input_path, noise_path):
 
     :param input_path: Path to the noisy audio file (.wav).
     :param noise_path: Path to the audio file containing a sample of the noise (.wav).
+    :param use_highpass: Boolean flag to enable the high-pass filter.
+    :param highpass_cutoff: The cutoff frequency for the high-pass filter.
     :return: The path to the cleaned output audio file.
     '''
     # Step 1. Load the audio files and convert to a processable format (mono, float)
@@ -48,20 +50,29 @@ def cancel_noise(input_path, noise_path):
 
     # Step 2. Perform STFT on both signals
     # TODO: manually perform STFT
-    f, t, Zxx_input = signal.stft(input_data_float, fs=input_rate)
-    _, _, Zxx_noise = signal.stft(noise_data_float, fs=input_rate) # We only need the magnitude from this
+    f, t, input_signal = signal.stft(input_data_float, fs=input_rate)
+    f_noise, _, noise_signal = signal.stft(noise_data_float, fs=input_rate) # We only need the magnitude from this
 
     # Step 3. Create noise profile (mean magnitude of noise frequency spectrum)
-    noise_profile = np.mean(np.abs(Zxx_noise), axis=1, keepdims=True)
+    mag_noise = np.mean(np.abs(noise_signal), axis=1, keepdims=True)
 
     # Step 4. Subtract noise profile from input signal (spectral subtraction)
-    mag_input = np.abs(Zxx_input)
-    phase_input = np.angle(Zxx_input)
-    mag_denoised = np.maximum(0, mag_input - noise_profile) # Use maximum to avoid negative values
-    Zxx_denoised = mag_denoised * np.exp(1j * phase_input)
+    mag_input = np.abs(input_signal) # Magnitude
+    phase_input = np.angle(input_signal) # Phase
+
+    # THIS IS THE OUTPUT SIGNAL
+    mag_denoised = np.maximum(0, mag_input - mag_noise) # Use maximum to avoid negative values
+
+    # --- High-pass filter: Remove frequencies below cutoff if enabled ---
+    if use_highpass:
+        # Find the indices of the frequency bins that are below the cutoff
+        low_freq_indices = np.where(f < highpass_cutoff)[0]
+        mag_denoised[low_freq_indices, :] = 0 # Set magnitude to 0 for these frequencies
+
+    denoised_signal = mag_denoised * np.exp(1j * phase_input)
 
     # Step 5. Perform Inverse STFT to get back to the time domain
-    _, cleaned_data_float = signal.istft(Zxx_denoised, fs=input_rate)
+    _, cleaned_data_float = signal.istft(denoised_signal, fs=input_rate)
 
     # Step 6. Normalize the output audio and convert to 16-bit integer for saving
     cleaned_data = np.int16(cleaned_data_float / np.max(np.abs(cleaned_data_float)) * 32767)
@@ -83,6 +94,6 @@ def cancel_noise(input_path, noise_path):
         "stft_time": t,
         "original_stft_mag_db": 20 * np.log10(mag_input + 1e-9),
         "cleaned_stft_mag_db": 20 * np.log10(mag_denoised + 1e-9),
-        "noise_stft_mag_db": 20 * np.log10(noise_profile + 1e-9)
+        "noise_stft_mag_db": 20 * np.log10(mag_noise + 1e-9)
     
     }
