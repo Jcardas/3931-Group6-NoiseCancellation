@@ -1,5 +1,6 @@
 Pillow==12.0.0
-numpy>=1.26
-soundfile>=0.12
-pydub>=0.25
-
+Scipy==1.16.3
+numpy==2.3.5
+tkmacosx==1.0.5
+customtkinter==5.2.2
+matplotlib==3.9.2
