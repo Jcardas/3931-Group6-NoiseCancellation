@@ -105,10 +105,11 @@ def cancel_noise(input_path, noise_path, use_highpass=False, highpass_cutoff=200
 
     # Step 4. Subtract noise profile from input signal (spectral subtraction)
     mag_input = np.abs(input_signal) # Magnitude
+    beta = 0.001 # Flooring factor to avoid negative values
     phase_input = np.angle(input_signal) # Phase
 
     # THIS IS THE OUTPUT SIGNAL
-    mag_denoised = np.maximum(0, mag_input - mag_noise) # Use maximum to avoid negative values
+    mag_denoised = np.maximum(beta * mag_input, mag_input - mag_noise) # Use maximum to avoid negative values
 
     # --- High-pass filter: Remove frequencies below cutoff if enabled ---
     if use_highpass:
