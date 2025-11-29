@@ -10,6 +10,10 @@ from scipy.io import wavfile
 from scipy import signal
 import os
 
+M = 1024  # STFT window size
+R = M // 2   # STFT hop size
+window = np.hanning(M)  # Hanning window
+
 def _to_mono_and_float(rate, data):
     '''
     Converts audio data to mono and float format for processing.
@@ -24,6 +28,44 @@ def _to_mono_and_float(rate, data):
         max_val = np.iinfo(data.dtype).max
         data = data.astype(np.float32) / max_val
     return data
+
+def manual_stft(x, fs, window, nperseg, noverlap):
+    '''
+    Manually computes the Short-Time Fourier Transform (STFT) of a signal.
+    
+    :param x: Input signal (time-domain audio data).
+    :param fs: Sampling frequency (rate).
+    :param window: Window function (Hanning M).
+    :param nperseg: Number of samples per segment (M).
+    :param noverlap: Number of overlapping samples between segments (R).
+    :return: Frequencies, times, and STFT matrix. 
+    '''
+    # The hop size (R) is the difference between the segment size and the overlap
+    step = nperseg - noverlap
+
+    #1. Framing using strides. (scipy.signal.stft uses a similar approach internally)
+    # Calculate the shape of the resulting 2D array (n_frames, M)
+    shape = ((x.size - noverlap) // step, nperseg)
+
+    # Strides define how many bytes to step in each dimension when traversing the array
+    strides = (x.strides[0] * step, x.strides[0])
+    # Create the 2D view (segments) of the 1D input signal using as_strided without copying data
+    # (Might have to be done with a for loop if this doesn't meet requirements but would be less efficient)
+    segments = np.lib.stride_tricks.as_strided(x, shape=shape, strides=strides)
+
+    # 2. Apply window to each segment
+    windowed_segments = segments * window
+
+    # 3. Compute the FFT for each windowed segment
+    stft_matrix = np.fft.rfft(windowed_segments, axis=1)
+
+    # 4. Generate time and frequency vectors
+    # Time vector: center time of each frame (in seconds)
+    times = (np.arange(0, stft_matrix.shape[0]) * step + nperseg / 2) / fs
+    # Frequency vector: center frequencies for each FFT bin
+    frequencies = np.fft.rfftfreq(nperseg, d=1/fs)
+
+    return frequencies, times, stft_matrix
 
 def cancel_noise(input_path, noise_path):
     '''
@@ -48,8 +90,8 @@ def cancel_noise(input_path, noise_path):
 
     # Step 2. Perform STFT on both signals
     # TODO: manually perform STFT
-    f, t, Zxx_input = signal.stft(input_data_float, fs=input_rate)
-    _, _, Zxx_noise = signal.stft(noise_data_float, fs=input_rate) # We only need the magnitude from this
+    f, t, Zxx_input = manual_stft(input_data_float, input_rate, window, nperseg=M, noverlap=R)
+    _, _, Zxx_noise = manual_stft(noise_data_float, noise_rate, window, nperseg=M, noverlap=R) # We only need the magnitude from this
 
     # Step 3. Create noise profile (mean magnitude of noise frequency spectrum)
     noise_profile = np.mean(np.abs(Zxx_noise), axis=1, keepdims=True)
