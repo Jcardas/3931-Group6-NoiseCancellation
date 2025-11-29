@@ -43,18 +43,23 @@ def manual_stft(x, fs, window, nperseg, noverlap):
     # The hop size (R) is the difference between the segment size and the overlap
     step = nperseg - noverlap
 
-    #1. Framing using strides. (scipy.signal.stft uses a similar approach internally)
-    # Calculate the shape of the resulting 2D array (n_frames, M)
-    shape = ((x.size - noverlap) // step, nperseg)
+    # 1. Calculate the number of full frames available
+    n_frames = (x.size - nperseg) // step + 1
+    
+    # Initialize a list to hold the windowed segments
+    windowed_segments_list = []
 
-    # Strides define how many bytes to step in each dimension when traversing the array
-    strides = (x.strides[0] * step, x.strides[0])
-    # Create the 2D view (segments) of the 1D input signal using as_strided without copying data
-    # (Might have to be done with a for loop if this doesn't meet requirements but would be less efficient)
-    segments = np.lib.stride_tricks.as_strided(x, shape=shape, strides=strides)
+    # 2. Framing using a loop for boundary handling
+    for i in range(n_frames):
+        start = i * step
+        end = start + nperseg
+        
+        # Extract segment and apply window
+        segment = x[start:end] * window
+        windowed_segments_list.append(segment)
 
-    # 2. Apply window to each segment
-    windowed_segments = segments * window
+    # Convert the list of segments into a 2D NumPy array
+    windowed_segments = np.array(windowed_segments_list)
 
     # 3. Compute the FFT for each windowed segment
     stft_matrix = np.fft.rfft(windowed_segments, axis=1)
@@ -96,7 +101,7 @@ def cancel_noise(input_path, noise_path, use_highpass=False, highpass_cutoff=200
     f_noise, _, noise_signal = manual_stft(noise_data_float, noise_rate, window, nperseg=M, noverlap=R) # We only need the magnitude from this
 
     # Step 3. Create noise profile (mean magnitude of noise frequency spectrum)
-    mag_noise = np.mean(np.abs(noise_signal), axis=1, keepdims=True)
+    mag_noise = np.mean(np.abs(noise_signal), axis=0, keepdims=True)
 
     # Step 4. Subtract noise profile from input signal (spectral subtraction)
     mag_input = np.abs(input_signal) # Magnitude
@@ -112,12 +117,42 @@ def cancel_noise(input_path, noise_path, use_highpass=False, highpass_cutoff=200
         mag_denoised[low_freq_indices, :] = 0 # Set magnitude to 0 for these frequencies
 
     denoised_signal = mag_denoised * np.exp(1j * phase_input)
+    denoised_signal_T = denoised_signal.T 
 
-    # Step 5. Perform Inverse STFT to get back to the time domain
-    _, cleaned_data_float = signal.istft(denoised_signal, fs=input_rate)
+    # Step 5. Perform Inverse STFT to get back to the time domain (Added transpose and fixed parameters to match manual STFT)
+    _, cleaned_data_float = signal.istft(denoised_signal_T, 
+                                         fs=input_rate,
+                                         window=window,
+                                         nperseg=M,
+                                         noverlap=R)
 
     # Step 6. Normalize the output audio and convert to 16-bit integer for saving
-    cleaned_data = np.int16(cleaned_data_float / np.max(np.abs(cleaned_data_float)) * 32767)
+    # Currently manual stft produces audios that are too loud in amplitude. We need to scale them down for proper playback in the UI. 
+    max_abs_val_input = np.max(np.abs(input_data_float)) if np.max(np.abs(input_data_float)) > 0 else 1.0
+    
+    # Global gain factor. This is set low to prevent loud amplification in the UI player.
+    gamma = 0.005
+    
+    # Calculate the scale factor to bring the audio down to the target level (32767 * gamma)
+    scaling_target = 32767 * gamma
+    
+    # Calculate the scale we need for the raw float data:
+    # Scale_Factor = Target_Int_Max / Original_Float_Max
+    scaling_factor = scaling_target / max_abs_val_input 
+    
+     # Initialize scaled output arrays 
+    cleaned_data_float_scaled = np.zeros_like(cleaned_data_float, dtype=np.float32) 
+    cleaned_data = np.zeros_like(cleaned_data_float, dtype=np.int16) 
+    
+    if max_abs_val_input > 0:
+        # Scale the raw float data to the integer target range (32767 * gamma)
+        cleaned_data_float_raw_scaled = cleaned_data_float * scaling_factor
+        
+        # SCALED float version for UI return (range [-gamma, gamma])
+        cleaned_data_float_scaled = cleaned_data_float_raw_scaled / 32767
+        
+        # 16-bit integer version for WAV writing
+        cleaned_data = np.int16(np.clip(cleaned_data_float_raw_scaled, -32767, 32767))
 
     # Step 7. Save processed audio to Downloads folder with prefix "cleaned_"
     downloads_folder = os.path.expanduser("~/Downloads")
@@ -125,17 +160,21 @@ def cancel_noise(input_path, noise_path, use_highpass=False, highpass_cutoff=200
     output_file_path = os.path.join(downloads_folder, f"cleaned_{input_filename}")
     wavfile.write(output_file_path, input_rate, cleaned_data)
 
+    mag_input_T = mag_input.T
+    mag_denoised_T = mag_denoised.T
+    mag_noise_T = mag_noise.T
+
     # Return a dictionary with all necessary data for playback and visualization
     return {
         "output_path": output_file_path,
         "sample_rate": input_rate,
         "original_audio": input_data_float,
-        "cleaned_audio": cleaned_data_float,
+        "cleaned_audio": cleaned_data_float_scaled,
         "noise_audio": noise_data_float,
         "stft_freq": f,
         "stft_time": t,
-        "original_stft_mag_db": 20 * np.log10(mag_input + 1e-9),
-        "cleaned_stft_mag_db": 20 * np.log10(mag_denoised + 1e-9),
-        "noise_stft_mag_db": 20 * np.log10(mag_noise + 1e-9)
+        "original_stft_mag_db": 20 * np.log10(mag_input_T + 1e-9),
+        "cleaned_stft_mag_db": 20 * np.log10(mag_denoised_T + 1e-9),
+        "noise_stft_mag_db": 20 * np.log10(mag_noise_T + 1e-9)
     
     }
