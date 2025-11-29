@@ -73,7 +73,7 @@ class App(ctk.CTk):
 
         page.tkraise()
 
-    def process_files(self):
+    def process_files(self, use_highpass=False):
         '''
         Validates that both files have been selected and calls the processing function.
         Displays success or error messages to the user.
@@ -84,7 +84,8 @@ class App(ctk.CTk):
             # Pass the file paths to the backend processing function
             results = processing.cancel_noise(
                 input_path=self.input_file,
-                noise_path=self.noise_file
+                noise_path=self.noise_file,
+                use_highpass=use_highpass
             )
             # Store the results in the controller
             self.processing_results = results

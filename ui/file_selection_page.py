@@ -60,12 +60,27 @@ class FileSelectionPage(ctk.CTkFrame):
         ctk.CTkButton(self.noise_card, text="Select Noise", fg_color=COLOR_BUTTON, hover_color=COLOR_BUTTON_HOVER,
                       command=lambda: self._select_file("noise")).pack(side="bottom", pady=10)
 
-        # --- Process Button Frame ---
+        # --- Processing Options Frame ---
         bottom_frame = ctk.CTkFrame(self, fg_color=COLOR_BACKGROUND)
         bottom_frame.pack(pady=20, side="bottom")
 
-        ctk.CTkButton(bottom_frame, text="Cancel Noise", fg_color=COLOR_BUTTON, hover_color=COLOR_BUTTON_HOVER,
-                      command=self._process_files).pack()
+        self.stft_toggle = ctk.CTkCheckBox(bottom_frame, text="Use STFT (Spectral Subtraction)",
+                                        onvalue=True, offvalue=False,
+                                        fg_color=COLOR_BUTTON, hover_color=COLOR_BUTTON_HOVER,
+                                        text_color=COLOR_TEXT)
+        self.stft_toggle.pack(pady=5)
+        self.stft_toggle.select() # STFT is selected by default
+
+        self.lowpass_toggle = ctk.CTkCheckBox(bottom_frame, text="Use Highpass filter",
+                                        onvalue=True, offvalue=False,
+                                        fg_color=COLOR_BUTTON, hover_color=COLOR_BUTTON_HOVER,
+                                        text_color=COLOR_TEXT)
+        self.lowpass_toggle.pack(pady=5)
+        
+
+        self.process_button = ctk.CTkButton(bottom_frame, text="Cancel Noise", hover_color=COLOR_BUTTON_HOVER,
+                                            fg_color=COLOR_DISABLED, state="disabled", command=self._process_files)
+        self.process_button.pack(pady=5)
 
     def _select_file(self, file_type):
         '''
@@ -86,6 +101,10 @@ class FileSelectionPage(ctk.CTkFrame):
             card_map[file_type].configure(border_color=COLOR_BUTTON)
             messagebox.showinfo("Selected", f"{title_map[file_type].split('(')[0].strip()}: {os.path.basename(file)}")
 
+            if self.controller.input_file and self.controller.noise_file:
+                self.process_button.configure(state="normal")
+                self.process_button.configure(fg_color=COLOR_BUTTON)
+
     def _process_files(self):
         '''
         Validates files and calls the main controller to start processing.
@@ -97,5 +116,8 @@ class FileSelectionPage(ctk.CTkFrame):
             messagebox.showerror("Error", "Please select a noise sample file.")
             return
         
+        # Get the state of the high-pass filter toggle
+        use_highpass = self.lowpass_toggle.get()
+
         # Call the process method on the main App controller
-        self.controller.process_files()
+        self.controller.process_files(use_highpass=use_highpass)
