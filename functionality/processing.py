@@ -72,6 +72,54 @@ def manual_stft(x, fs, window, nperseg, noverlap):
 
     return frequencies, times, stft_matrix
 
+def manual_istft(stft_matrix_t, fs, window, nperseg, noverlap):
+    '''
+    Manually computes the Inverse Short-Time Fourier Transform (ISTFT) of a signal.
+    
+    :param stft_matrix_t: Transposed STFT matrix (time x frequency).
+    :param fs: Sampling frequency (rate).
+    :param window: Window function (Hanning M).
+    :param nperseg: Number of samples per segment (M).
+    :param noverlap: Number of overlapping samples between segments (R).
+    :return: Reconstructed time-domain signal.
+    '''
+    stft_matrix = stft_matrix_t.T  # Transpose back to frequency x time for iterations
+
+    n_frames = stft_matrix.shape[0]
+    step = nperseg - noverlap
+
+    # Estimate the length of the output signal
+    total_length = (n_frames - 1) * step + nperseg
+
+    output_signal = np.zeros(total_length)
+
+    # Compute the normalization factor (window sum of squares)
+    window_sum = np.zeros(total_length)
+    for i in range(n_frames):
+        start = i * step
+        end = start + nperseg
+
+        window_sum[start:end] += window ** 2
+    
+    window_sum[window_sum == 0] = 1e-6  # Prevent division by zero
+
+    # Inverse FFT using overlap-add method
+    for i in range(n_frames):
+        start = i * step
+        end = start + nperseg
+
+        # Inverse FFT to get the current frame's frequency data
+        time_frame = np.fft.irfft(stft_matrix[i, :])
+
+        # Apply the window to the time frame
+        windowed_frame = time_frame * window
+
+        # Overlap-add to reconstruct the output signal
+        output_signal[start:end] += windowed_frame / window_sum[start:end]
+
+    return output_signal
+
+
 def cancel_noise(input_path, noise_path, use_highpass=False, highpass_cutoff=200):
     '''
     Reduces noise from an audio file using spectral subtraction (STFT)
@@ -105,11 +153,13 @@ def cancel_noise(input_path, noise_path, use_highpass=False, highpass_cutoff=200
 
     # Step 4. Subtract noise profile from input signal (spectral subtraction)
     mag_input = np.abs(input_signal) # Magnitude
-    beta = 0.001 # Flooring factor to avoid negative values
     phase_input = np.angle(input_signal) # Phase
 
+    alpha = 1.05 # Over-subtraction factor
+    beta = 0.001 # Flooring factor to avoid negative values
+
     # THIS IS THE OUTPUT SIGNAL
-    mag_denoised = np.maximum(beta * mag_input, mag_input - mag_noise) # Use maximum to avoid negative values
+    mag_denoised = np.maximum(beta * mag_input, mag_input - alpha * mag_noise) # Use maximum to avoid negative values
 
     # --- High-pass filter: Remove frequencies below cutoff if enabled ---
     if use_highpass:
@@ -121,18 +171,15 @@ def cancel_noise(input_path, noise_path, use_highpass=False, highpass_cutoff=200
     denoised_signal_T = denoised_signal.T 
 
     # Step 5. Perform Inverse STFT to get back to the time domain (Added transpose and fixed parameters to match manual STFT)
-    _, cleaned_data_float = signal.istft(denoised_signal_T, 
-                                         fs=input_rate,
-                                         window=window,
-                                         nperseg=M,
-                                         noverlap=R)
+    ## _, cleaned_data_float = signal.istft(denoised_signal_T, fs=input_rate, window=window, nperseg=M, noverlap=R)
+    cleaned_data_float = manual_istft(denoised_signal_T, fs=input_rate, window=window, nperseg=M, noverlap=R)
 
     # Step 6. Normalize the output audio and convert to 16-bit integer for saving
     # Currently manual stft produces audios that are too loud in amplitude. We need to scale them down for proper playback in the UI. 
     max_abs_val_input = np.max(np.abs(input_data_float)) if np.max(np.abs(input_data_float)) > 0 else 1.0
     
     # Global gain factor. This is set low to prevent loud amplification in the UI player.
-    gamma = 0.005
+    gamma = 0.95
     
     # Calculate the scale factor to bring the audio down to the target level (32767 * gamma)
     scaling_target = 32767 * gamma
