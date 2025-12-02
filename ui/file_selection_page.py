@@ -101,6 +101,49 @@ class FileSelectionPage(ctk.CTkFrame):
         bottom_frame = ctk.CTkFrame(self, fg_color=COLOR_BACKGROUND)
         bottom_frame.pack(pady=20, side="bottom")
 
+        # --- Settings Inputs ---
+        settings_frame = ctk.CTkFrame(bottom_frame, fg_color=COLOR_BACKGROUND)
+        settings_frame.pack(pady=10)
+
+        # M (Window Size)
+        ctk.CTkLabel(
+            settings_frame, text="Window Size (M):", text_color=COLOR_TEXT
+        ).grid(row=0, column=0, padx=5)
+        self.m_entry = ctk.CTkEntry(
+            settings_frame,
+            width=80,
+            fg_color=COLOR_CARD_BACKGROUND,
+            text_color=COLOR_TEXT,
+        )
+        self.m_entry.insert(0, "256")
+        self.m_entry.grid(row=0, column=1, padx=5)
+
+        # Alpha (Over-subtraction)
+        ctk.CTkLabel(
+            settings_frame, text="Alpha (Over-subtraction):", text_color=COLOR_TEXT
+        ).grid(row=0, column=2, padx=5)
+        self.alpha_entry = ctk.CTkEntry(
+            settings_frame,
+            width=80,
+            fg_color=COLOR_CARD_BACKGROUND,
+            text_color=COLOR_TEXT,
+        )
+        self.alpha_entry.insert(0, "1.05")
+        self.alpha_entry.grid(row=0, column=3, padx=5)
+
+        # Beta (Flooring)
+        ctk.CTkLabel(
+            settings_frame, text="Beta (Flooring Factor):", text_color=COLOR_TEXT
+        ).grid(row=0, column=4, padx=5)
+        self.beta_entry = ctk.CTkEntry(
+            settings_frame,
+            width=80,
+            fg_color=COLOR_CARD_BACKGROUND,
+            text_color=COLOR_TEXT,
+        )
+        self.beta_entry.insert(0, "0.001")
+        self.beta_entry.grid(row=0, column=5, padx=5)
+
         self.process_button = ctk.CTkButton(
             bottom_frame,
             text="Cancel Noise",
@@ -109,7 +152,7 @@ class FileSelectionPage(ctk.CTkFrame):
             state="disabled",
             command=self._process_files,
         )
-        self.process_button.pack(pady=5)
+        self.process_button.pack(pady=20)
 
     def _select_file(self, file_type):
         """
@@ -153,5 +196,21 @@ class FileSelectionPage(ctk.CTkFrame):
             messagebox.showerror("Error", "Please select a noise sample file.")
             return
 
+        # Retrieve settings from inputs
+        try:
+            M = int(self.m_entry.get())
+            alpha = float(self.alpha_entry.get())
+            beta = float(self.beta_entry.get())
+
+            if M <= 0 or alpha < 0 or beta < 0:
+                raise ValueError("Values must be positive.")
+
+        except ValueError:
+            messagebox.showerror(
+                "Invalid Input",
+                "Please ensure M is an integer, and Alpha/Beta are numbers.",
+            )
+            return
+
         # Call the process method on the main App controller
-        self.controller.process_files()
+        self.controller.process_files(M=M, alpha=alpha, beta=beta)

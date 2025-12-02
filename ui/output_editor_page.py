@@ -6,7 +6,7 @@ The processed audio is displayed in frequency domain using matplotlib
 """
 
 import customtkinter as ctk
-from tkinter import PhotoImage
+from tkinter import PhotoImage, messagebox
 import time
 import numpy as np
 import sounddevice as sd
@@ -62,7 +62,7 @@ class OutputEditorPage(ctk.CTkFrame):
         row_frame = ctk.CTkFrame(self, fg_color=COLOR_BACKGROUND)
         row_frame.pack(side="left", pady=20, expand=True, fill="both", padx=40)
 
-        # --- Left Panel: Audio Players ---
+        # --- Left Panel: Audio Players & Settings ---
         left_panel = ctk.CTkFrame(row_frame, fg_color=COLOR_BACKGROUND)
         left_panel.pack(side="left", padx=(40, 20), fill="y")
 
@@ -81,6 +81,72 @@ class OutputEditorPage(ctk.CTkFrame):
         self.create_player_row(left_panel, "Noise Sample", "noise_audio")
         self.create_player_row(left_panel, "Cleaned Output", "cleaned_audio")
 
+        # --- Filter Settings Frame ---
+        self.settings_frame = ctk.CTkFrame(
+            left_panel,
+            fg_color=COLOR_CARD_BACKGROUND,
+            border_width=2,
+            border_color=COLOR_CARD_BACKGROUND,
+        )
+        self.settings_frame.pack(pady=20, fill="x")
+
+        ctk.CTkLabel(
+            self.settings_frame,
+            text="Filter Settings",
+            font=("Arial", 14, "bold"),
+            text_color=COLOR_TEXT,
+        ).pack(pady=(10, 5))
+
+        # Grid for inputs
+        input_grid = ctk.CTkFrame(self.settings_frame, fg_color="transparent")
+        input_grid.pack(pady=5, padx=10)
+
+        # M Input
+        ctk.CTkLabel(
+            input_grid, text="M (Size):", text_color=COLOR_TEXT, width=60, anchor="w"
+        ).grid(row=0, column=0, padx=5, pady=2)
+        self.m_entry = ctk.CTkEntry(
+            input_grid, width=60, fg_color=COLOR_BACKGROUND, text_color=COLOR_TEXT
+        )
+        self.m_entry.grid(row=0, column=1, padx=5, pady=2)
+
+        # Alpha Input
+        ctk.CTkLabel(
+            input_grid,
+            text="Alpha (Over-subtraction):",
+            text_color=COLOR_TEXT,
+            width=60,
+            anchor="w",
+        ).grid(row=1, column=0, padx=5, pady=2)
+        self.alpha_entry = ctk.CTkEntry(
+            input_grid, width=60, fg_color=COLOR_BACKGROUND, text_color=COLOR_TEXT
+        )
+        self.alpha_entry.grid(row=1, column=1, padx=5, pady=2)
+
+        # Beta Input
+        ctk.CTkLabel(
+            input_grid,
+            text="Beta (Flooring Factor):",
+            text_color=COLOR_TEXT,
+            width=60,
+            anchor="w",
+        ).grid(row=2, column=0, padx=5, pady=2)
+        self.beta_entry = ctk.CTkEntry(
+            input_grid, width=60, fg_color=COLOR_BACKGROUND, text_color=COLOR_TEXT
+        )
+        self.beta_entry.grid(row=2, column=1, padx=5, pady=2)
+
+        # Update Button
+        self.update_btn = ctk.CTkButton(
+            self.settings_frame,
+            text="Update Filter",
+            fg_color=COLOR_ALT_GRAPH,  # Use a distinct color for action
+            hover_color="#E02E2E",
+            height=30,
+            command=self.update_filter,
+        )
+        self.update_btn.pack(pady=10, padx=10, fill="x")
+
         # Save Button
         self.save_button = ctk.CTkButton(
             left_panel,
@@ -92,7 +158,7 @@ class OutputEditorPage(ctk.CTkFrame):
             hover_color=COLOR_BUTTON_HOVER,
             command=self.controller.save_files,
         )
-        self.save_button.pack(pady=10)
+        self.save_button.pack(pady=10, side="bottom")
 
         # --- Right Panel: Graph ---
         self.graph_frame = ctk.CTkFrame(row_frame, fg_color=COLOR_BACKGROUND)
@@ -136,41 +202,34 @@ class OutputEditorPage(ctk.CTkFrame):
             parent,
             fg_color=COLOR_CARD_BACKGROUND,
             width=300,
-            height=100,
+            height=80,  # Made slightly smaller to fit settings
             border_width=2,
-            border_color=COLOR_CARD_BACKGROUND,  # Default invisible border
+            border_color=COLOR_CARD_BACKGROUND,
         )
-        card.pack(pady=10, padx=5)
+        card.pack(pady=5, padx=5)
         card.pack_propagate(False)
 
-        # Store reference
         self.audio_cards[key] = card
 
-        # Click handler
         def on_click(event):
             self.select_audio(key)
 
-        # Bind click to card
         card.bind("<Button-1>", on_click)
 
-        # File icon
         icon_label = ctk.CTkLabel(card, image=self.file_icon, text="")
         icon_label.pack(side="left", padx=10, anchor="center")
         icon_label.bind("<Button-1>", on_click)
 
-        # Column for Text
         text_frame = ctk.CTkFrame(card, fg_color="transparent")
-        text_frame.pack(side="left", fill="both", expand=True, pady=20)
+        text_frame.pack(side="left", fill="both", expand=True, pady=10)
         text_frame.bind("<Button-1>", on_click)
 
-        # Title
         title_lbl = ctk.CTkLabel(
             text_frame, text=title, text_color="gray", font=("Arial", 12)
         )
         title_lbl.pack(anchor="w")
         title_lbl.bind("<Button-1>", on_click)
 
-        # Filename
         name_label = ctk.CTkLabel(
             text_frame, text="...", text_color=COLOR_TEXT, font=("Arial", 14, "bold")
         )
@@ -179,49 +238,63 @@ class OutputEditorPage(ctk.CTkFrame):
         self.name_labels[key] = name_label
 
     def select_audio(self, key):
-        """
-        Selects the audio source for playback and visualization.
-        """
+        """Selects the audio source for playback and visualization."""
         if self.current_audio_key == key:
-            return  # Already selected
+            return
 
         self.current_audio_key = key
 
-        # 1. Visual Feedback (Border Highlight)
         for k, card in self.audio_cards.items():
             if k == key:
                 card.configure(border_color=COLOR_BUTTON)
             else:
                 card.configure(border_color=COLOR_CARD_BACKGROUND)
 
-        # 2. Update Graph
         self._draw_graph_at(self.paused_time)
 
-        # 3. Handle Playback Transition
         if self.is_playing:
-            # If playing, seamlessly switch to the new audio at the same timestamp
             sd.stop()
             self.start_playback_stream()
 
     def go_back(self):
-        """
-        Handles navigating back to the selection page.
-        """
         self.stop_playback()
-        # Unbind spacebar to prevent issues on other pages
         self.controller.unbind("<space>")
         self.controller.show_page(FileSelectionPage)
 
+    def update_filter(self):
+        """
+        Reads values from inputs and re-runs the processing.
+        """
+        try:
+            M = int(self.m_entry.get())
+            alpha = float(self.alpha_entry.get())
+            beta = float(self.beta_entry.get())
+
+            if M <= 0 or alpha < 0 or beta < 0:
+                raise ValueError("Values must be positive.")
+        except ValueError:
+            messagebox.showerror(
+                "Invalid Input",
+                "Please check your filter settings.\nM must be an integer, Alpha/Beta must be numbers.",
+            )
+            return
+
+        # Stop playback before updating
+        self.stop_playback()
+
+        # Trigger processing in the controller
+        # This will recalculate and call on_show again to refresh the UI
+        self.controller.process_files(M=M, alpha=alpha, beta=beta)
+
     def on_show(self):
         self.stop_playback()
-        self.seek_slider.set(0)  # Reset slider
-
-        # Bind Spacebar for Play/Pause
+        self.seek_slider.set(0)
         self.controller.bind("<space>", lambda event: self.toggle_playback())
 
         if self.controller.processing_results:
             res = self.controller.processing_results
-            # Update filenames
+
+            # Update labels
             self.name_labels["original_audio"].configure(
                 text=os.path.basename(self.controller.input_file)
             )
@@ -232,8 +305,21 @@ class OutputEditorPage(ctk.CTkFrame):
                 text=os.path.basename(res["output_path"])
             )
 
-            # Highlight the default selected audio (cleaned)
-            self.current_audio_key = "cleaned_audio"  # Ensure state matches visual
+            # --- Fill Filter Settings from Results ---
+            # This keeps the UI in sync with the actual data used
+            params = res.get("parameters", {"M": 256, "alpha": 1.05, "beta": 0.001})
+
+            self.m_entry.delete(0, "end")
+            self.m_entry.insert(0, str(params["M"]))
+
+            self.alpha_entry.delete(0, "end")
+            self.alpha_entry.insert(0, str(params["alpha"]))
+
+            self.beta_entry.delete(0, "end")
+            self.beta_entry.insert(0, str(params["beta"]))
+
+            # Default selection
+            self.current_audio_key = "cleaned_audio"
             self.select_audio("cleaned_audio")
 
             # Re-init graph
@@ -245,7 +331,6 @@ class OutputEditorPage(ctk.CTkFrame):
             )
             self.graph_elements["canvas_widget"].pack(expand=True, fill="both")
 
-            # Graph animation setup
             for key in ["line1", "line2", "line3"]:
                 self.graph_elements[key].set_animated(True)
                 self.graph_elements[key].set_clip_on(True)
@@ -261,35 +346,24 @@ class OutputEditorPage(ctk.CTkFrame):
             self.bg_cache = canvas.copy_from_bbox(self.graph_elements["ax"].bbox)
 
     def toggle_playback(self, event=None):
-        """
-        Toggles between Play and Pause states.
-        Arguments: event is optional (for spacebar binding)
-        """
         if not self.controller.processing_results:
             return
 
         if self.is_playing:
-            # PAUSE
             self.paused_time += time.time() - self.playback_start_time
             sd.stop()
             self.is_playing = False
             if self.animation_job:
                 self.after_cancel(self.animation_job)
                 self.animation_job = None
-
             self.play_pause_btn.configure(image=self.play_icon)
-
         else:
-            # PLAY
             self.start_playback_stream()
             self.is_playing = True
             self.play_pause_btn.configure(image=self.pause_icon)
             self.update_plot()
 
     def start_playback_stream(self):
-        """
-        Helper to start the sounddevice stream from the current paused_time.
-        """
         results = self.controller.processing_results
         sample_rate = results["sample_rate"]
         audio_data = results[self.current_audio_key]
@@ -302,14 +376,13 @@ class OutputEditorPage(ctk.CTkFrame):
 
         data_toplay = np.ascontiguousarray(audio_data[start_sample:])
         sd.play(data_toplay, sample_rate)
-
         self.playback_start_time = time.time()
 
     def stop_playback(self):
         sd.stop()
         self.is_playing = False
         self.paused_time = 0.0
-        self.seek_slider.set(0)  # Reset slider on stop
+        self.seek_slider.set(0)
         self.play_pause_btn.configure(image=self.play_icon)
 
         if self.animation_job:
@@ -317,40 +390,24 @@ class OutputEditorPage(ctk.CTkFrame):
             self.animation_job = None
 
     def on_seek(self, value):
-        """
-        Called when the user drags the slider.
-        """
         if not self.controller.processing_results:
             return
-
-        # 1. Calculate the new time based on slider value (0.0 to 1.0)
         results = self.controller.processing_results
         audio_data = results[self.current_audio_key]
         sample_rate = results["sample_rate"]
         duration = len(audio_data) / sample_rate
-
         new_time = value * duration
         self.paused_time = new_time
-
-        # 2. Update the graph visuals immediately
         self._draw_graph_at(new_time)
-
-        # 3. If currently playing, restart playback from the new position
         if self.is_playing:
             sd.stop()
             self.start_playback_stream()
 
     def _draw_graph_at(self, elapsed_time):
-        """
-        Helper function to draw the graph lines at a specific elapsed time.
-        Used by both the animation loop and the scrubber.
-        """
         if not self.graph_elements:
             return
-
         results = self.controller.processing_results
         noise_mag = results["noise_stft_mag_db"]
-
         canvas = self.graph_elements["canvas"]
         ax = self.graph_elements["ax"]
 
@@ -360,7 +417,6 @@ class OutputEditorPage(ctk.CTkFrame):
 
         canvas.restore_region(self.bg_cache)
 
-        # --- SELECTIVE DRAWING ---
         if self.current_audio_key == "original_audio":
             time_vector = results["stft_time"]
             time_index = np.searchsorted(time_vector, elapsed_time)
@@ -392,23 +448,15 @@ class OutputEditorPage(ctk.CTkFrame):
 
     def update_plot(self):
         results = self.controller.processing_results
-
-        # Calculate current progress
         elapsed_time = self.paused_time + (time.time() - self.playback_start_time)
-
         audio_data = results[self.current_audio_key]
         sample_rate = results["sample_rate"]
         duration = len(audio_data) / sample_rate
 
         if elapsed_time < duration or self.current_audio_key == "noise_audio":
-            # Update visuals
             self._draw_graph_at(elapsed_time)
-
-            # Update Slider Position
-            # We check if duration > 0 to avoid division by zero
             if duration > 0:
                 self.seek_slider.set(elapsed_time / duration)
-
             self.animation_job = self.after(30, self.update_plot)
         else:
             self.stop_playback()
