@@ -1,159 +1,101 @@
-"""
-This is the main app window for the Noise Canceller.
-This class will instantiate the other UI pages as needed.
-"""
-
 import customtkinter as ctk
+import threading
+import os
 from tkinter import messagebox
-from scipy.io import wavfile
-import core.processing as processing
-
-import sys
-import sounddevice as sd
-
-# Import the pages
-from ui.pages.file_selection import FileSelection
-from ui.pages.output_editor import OutputEditor
-from ui.theme import COLOR_BACKGROUND
+from core.processing import NoiseCanceller
+from core.audio_utils import save_audio
+from ui.theme import *
+from ui.pages.file_selection import FileSelectionPage
+from ui.pages.output_editor import OutputEditorPage
 
 
-# --- Main Application Class ---
 class App(ctk.CTk):
-    """
-    The main application class for the Noise Canceller GUI.
-    It encapsulates all UI elements and application logic.
-    This class is the CONTROLLER. It manages which view (page) is currently active.
-    """
-
     def __init__(self):
-        """
-        Initializes the main application window and its components.
-        """
         super().__init__()
-
-        # --- Window Setup ---
         self.title("Noise Canceller")
         self.geometry("1200x720")
-        self.minsize(1200, 720)
-        ctk.set_appearance_mode("light")
-        self.configure(fg_color=COLOR_BACKGROUND)
 
-        self.protocol("WM_DELETE_WINDOW", self.on_closing)
+        # State
+        self.input_path = None
+        self.noise_path = None
+        self.processing_results = None
+        self.processor = NoiseCanceller()
 
-        # --- State Variables ---
-        # These variables will store the paths to the selected audio files.
-        self.input_file = None
-        self.noise_file = None
-        self.output_file = None
-        self.processing_results = None  # Will hold the dict from processing
-        self.current_page_class = FileSelection
+        # Pages container
+        self.container = ctk.CTkFrame(self)
+        self.container.pack(fill="both", expand=True)
+        self.container.grid_rowconfigure(0, weight=1)
+        self.container.grid_columnconfigure(0, weight=1)
 
-        # --- Container for Pages ---
-        # This frame will hold the different pages of the application.
-        container = ctk.CTkFrame(self, fg_color=COLOR_BACKGROUND)
-        container.pack(side="top", fill="both", expand=True)
-        container.grid_rowconfigure(0, weight=1)
-        container.grid_columnconfigure(0, weight=1)
-
-        # --- Dictionary to hold the pages ---
         self.pages = {}
+        self.init_pages()
+        self.show_page("FileSelectionPage")
 
-        # Create an instance of the file selection page
-        page = FileSelection(parent=container, controller=self)
-        self.pages[FileSelection] = page
-        page.grid(row=0, column=0, sticky="nsew")
+    def init_pages(self):
+        # We inject 'self' as the controller
+        for PageClass in [FileSelectionPage, OutputEditorPage]:
+            page_name = PageClass.__name__
+            page = PageClass(parent=self.container, controller=self)
+            self.pages[page_name] = page
+            page.grid(row=0, column=0, sticky="nsew")
 
-        # Create an instance of the output editor page
-        page = OutputEditor(parent=container, controller=self)
-        self.pages[OutputEditor] = page
-        page.grid(row=0, column=0, sticky="nsew")
-
-        # --- Show the initial page ---
-        self.show_page(FileSelection)
-
-    def on_closing(self):
-        """
-        Handles cleanup when the application window is closed.
-        """
-        sd.stop()
-        self.quit()
-        self.destroy()
-        sys.exit()
-
-    def show_page(self, page_class):
-        """
-        Raises the specified page to the top of the view.
-        :param page_class: The class of the page to show.
-        """
-        # If leaving the OutputEditorPage, prompt to save if there are unsaved changes
-        if (
-            self.current_page_class == OutputEditor
-            and page_class != OutputEditor
-            and self.processing_results
-        ):
-
-            response = messagebox.askyesno(
-                "Save Changes", "Do you want to save the cleaned audio before leaving?"
-            )
-
-            if response:
-                self.save_files(alert_on_success=True)
-
-        page = self.pages[page_class]
-        self.current_page_class = page_class
-        # If the page has an 'on_show' method, call it.
+    def show_page(self, page_name):
+        page = self.pages[page_name]
         if hasattr(page, "on_show"):
             page.on_show()
-
         page.tkraise()
 
-    def process_files(self, M=256, alpha=1.05, beta=0.001):
-        """
-        Validates that both files have been selected and calls the processing function.
-        Displays success or error messages to the user.
-        This method is called FROM the FileSelectionPage.
-        """
-        # --- Call Processing Logic ---
-        try:
-            # Pass the file paths and parameters to the backend processing function
-            results = processing.cancel_noise(
-                input_path=self.input_file,
-                noise_path=self.noise_file,
-                M=M,
-                alpha=alpha,
-                beta=beta,
-            )
-            # Store the results in the controller
-            self.processing_results = results
+    def set_files(self, input_p, noise_p):
+        self.input_path = input_p
+        self.noise_path = noise_p
 
-            self.show_page(OutputEditor)
+    def run_processing(self, M, alpha, beta):
+        """Runs processing in a separate thread"""
 
-        except Exception as e:
-            # Show a detailed error message if something goes wrong
-            messagebox.showerror("Processing Error", str(e))
+        # Show loading state if you have a spinner, or disable buttons
+        self.configure(cursor="watch")
 
-    def save_files(self, alert_on_success=True):
-        """
-        Saves the processed output file to the user's Downloads folder.
-        This method is called FROM the OutputEditorPage.
-        """
-        try:
-            output_path = self.processing_results["output_path"]
-            sample_rate = self.processing_results["sample_rate"]
-
-            # Read the cleaned audio data
-            cleaned_data_int = self.processing_results["cleaned_data_int_final"]
-
-            # Save to Downloads folder
-            wavfile.write(output_path, sample_rate, cleaned_data_int)
-
-            if alert_on_success:
-                # Show success message with the output file path
-                messagebox.showinfo(
-                    "Success",
-                    f"Noise cancelled!\nSaved to: {self.processing_results['output_path']}",
+        def task():
+            try:
+                data = self.processor.process(
+                    self.input_path, self.noise_path, M, alpha, beta
                 )
-            self.processing_results = None  # Clear results after saving
+                self.after(0, lambda: self.on_processing_success(data))
+            except Exception as e:
+                err_msg = str(e)
+                self.after(0, lambda: self.on_processing_error(err_msg))
+
+        threading.Thread(target=task, daemon=True).start()
+
+    def on_processing_success(self, data):
+        self.configure(cursor="")
+        self.processing_results = data
+        self.show_page("OutputEditorPage")
+
+    def on_processing_error(self, error_msg):
+        self.configure(cursor="")
+        messagebox.showerror("Error", error_msg)
+
+    def save_output(self):
+        if not self.processing_results:
+            return
+
+        # Save to Downloads
+        downloads = os.path.expanduser("~/Downloads")
+        filename = f"cleaned_{os.path.basename(self.input_path)}"
+        path = os.path.join(downloads, filename)
+
+        try:
+            save_audio(
+                path,
+                self.processing_results["sample_rate"],
+                self.processing_results["cleaned_audio"],
+            )
+            messagebox.showinfo("Saved", f"File saved to:\n{path}")
         except Exception as e:
-            # Show error message if saving fails
             messagebox.showerror("Save Error", str(e))
+
+
+if __name__ == "__main__":
+    app = App()
+    app.mainloop()

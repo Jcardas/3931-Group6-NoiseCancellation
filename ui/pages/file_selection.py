@@ -8,7 +8,7 @@ from ..theme import *  # Import all theme constants
 import os
 
 
-class FileSelection(ctk.CTkFrame):
+class FileSelectionPage(ctk.CTkFrame):
     """
     A frame that contains the UI for selecting input and noise audio files.
     """
@@ -170,9 +170,9 @@ class FileSelection(ctk.CTkFrame):
         )
         if file:
             if file_type == "input":
-                self.controller.input_file = file
+                self.controller.input_path = file
             else:
-                self.controller.noise_file = file
+                self.controller.noise_path = file
 
             label_map[file_type].configure(text=os.path.basename(file))
             card_map[file_type].configure(border_color=COLOR_BUTTON)
@@ -181,36 +181,22 @@ class FileSelection(ctk.CTkFrame):
                 f"{title_map[file_type].split('(')[0].strip()}: {os.path.basename(file)}",
             )
 
-            if self.controller.input_file and self.controller.noise_file:
+            if self.controller.input_path and self.controller.noise_path:
                 self.process_button.configure(state="normal")
                 self.process_button.configure(fg_color=COLOR_BUTTON)
 
     def _process_files(self):
-        """
-        Validates files and calls the main controller to start processing.
-        """
-        if not self.controller.input_file:
-            messagebox.showerror("Error", "Please select an input audio file.")
-            return
-        if not self.controller.noise_file:
-            messagebox.showerror("Error", "Please select a noise sample file.")
+        if not self.controller.input_path or not self.controller.noise_path:
+            messagebox.showerror("Error", "Files missing")
             return
 
-        # Retrieve settings from inputs
         try:
             M = int(self.m_entry.get())
             alpha = float(self.alpha_entry.get())
             beta = float(self.beta_entry.get())
 
-            if M <= 0 or alpha < 0 or beta < 0:
-                raise ValueError("Values must be positive.")
+            # CALL CONTROLLER METHOD
+            self.controller.run_processing(M, alpha, beta)
 
         except ValueError:
-            messagebox.showerror(
-                "Invalid Input",
-                "Please ensure M is an integer, and Alpha/Beta are numbers.",
-            )
-            return
-
-        # Call the process method on the main App controller
-        self.controller.process_files(M=M, alpha=alpha, beta=beta)
+            messagebox.showerror("Error", "Invalid parameters")

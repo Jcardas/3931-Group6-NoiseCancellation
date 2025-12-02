@@ -1,152 +1,48 @@
-"""
-Processes the input audio with the noise file to remove noise.
-Performs a STFT on the input using the noise. Then normalizes the audio
-and outputs it to the Downloads folder.
-"""
-
 import numpy as np
-from scipy.io import wavfile
-from scipy import signal
-import os
-
-# ... [Keep imports and helper functions _to_mono_and_float, manual_stft, manual_istft unchanged] ...
+from .audio_utils import read_audio, manual_stft, manual_istft
 
 
-def _to_mono_and_float(rate, data):
-    """
-    Converts audio data to mono and float format for processing.
-    e.g: we perform the STFT on one signal only, instead of both channels in a stereo signal.
-    """
-    if data.ndim > 1:
-        data = data.mean(axis=1)
-    if np.issubdtype(data.dtype, np.integer):
-        max_val = np.iinfo(data.dtype).max
-        data = data.astype(np.float32) / max_val
-    return data
+class NoiseCanceller:
+    def process(self, input_path, noise_path, M=256, alpha=1.05, beta=0.001):
+        """
+        Performs spectral subtraction.
+        Returns a dictionary of DATA, not file paths.
+        """
+        # 1. Load Data
+        rate, input_data = read_audio(input_path)
+        _, noise_data = read_audio(noise_path)
 
+        # 2. Setup STFT
+        R = M // 2
+        window = np.hanning(M)
+        norm_factor = np.sum(window) / 2
 
-def manual_stft(x, fs, window, nperseg, noverlap):
-    # ... [Keep existing implementation] ...
-    step = nperseg - noverlap
-    n_frames = (x.size - nperseg) // step + 1
-    windowed_segments_list = []
-    for i in range(n_frames):
-        start = i * step
-        end = start + nperseg
-        segment = x[start:end] * window
-        windowed_segments_list.append(segment)
-    windowed_segments = np.array(windowed_segments_list)
-    stft_matrix = np.fft.rfft(windowed_segments, axis=1)
-    times = (np.arange(0, stft_matrix.shape[0]) * step + nperseg / 2) / fs
-    frequencies = np.fft.rfftfreq(nperseg, d=1 / fs)
-    return frequencies, times, stft_matrix
+        # 3. Perform STFT
+        # FIX: Pass 'rate' as the second argument to manual_stft
+        f, t, input_stft = manual_stft(input_data, rate, window, M, R)
+        _, _, noise_stft = manual_stft(noise_data, rate, window, M, R)
 
+        # 4. Spectral Subtraction Logic
+        mag_input = np.abs(input_stft)
+        mag_noise = np.mean(np.abs(noise_stft), axis=0, keepdims=True)
+        phase_input = np.angle(input_stft)
 
-def manual_istft(stft_matrix_t, fs, window, nperseg, noverlap):
-    # ... [Keep existing implementation] ...
-    stft_matrix = stft_matrix_t.T
-    n_frames = stft_matrix.shape[0]
-    step = nperseg - noverlap
-    total_length = (n_frames - 1) * step + nperseg
-    output_signal = np.zeros(total_length)
-    window_sum = np.zeros(total_length)
-    for i in range(n_frames):
-        start = i * step
-        end = start + nperseg
-        window_sum[start:end] += window**2
-    window_sum[window_sum == 0] = 1e-6
-    for i in range(n_frames):
-        start = i * step
-        end = start + nperseg
-        time_frame = np.fft.irfft(stft_matrix[i, :])
-        windowed_frame = time_frame * window
-        output_signal[start:end] += windowed_frame / window_sum[start:end]
-    return output_signal
+        mag_denoised = np.maximum(beta * mag_input, mag_input - alpha * mag_noise)
+        denoised_stft = mag_denoised * np.exp(1j * phase_input)
 
+        # 5. ISTFT
+        cleaned_audio = manual_istft(denoised_stft.T, rate, window, M, R)
 
-def cancel_noise(input_path, noise_path, M=256, alpha=1.05, beta=0.001):
-    """
-    Reduces noise from an audio file using spectral subtraction (STFT)
-    """
-
-    # Define STFT parameters dynamically based on M
-    R = M // 2
-    window = np.hanning(M)
-
-    # --- 1. Load files ---
-    input_rate, input_data = wavfile.read(input_path)
-    noise_rate, noise_data = wavfile.read(noise_path)
-
-    # ... (Keep existing validation and float conversion code) ...
-    input_data_float = _to_mono_and_float(input_rate, input_data)
-    noise_data_float = _to_mono_and_float(noise_rate, noise_data)
-
-    # --- 2. Perform STFT ---
-    f, t, input_signal = manual_stft(
-        input_data_float, input_rate, window, nperseg=M, noverlap=R
-    )
-    _, _, noise_signal = manual_stft(
-        noise_data_float, noise_rate, window, nperseg=M, noverlap=R
-    )
-
-    # --- 3. Noise Profile ---
-    mag_noise = np.mean(np.abs(noise_signal), axis=0, keepdims=True)
-
-    # --- 4. Spectral Subtraction ---
-    mag_input = np.abs(input_signal)
-    phase_input = np.angle(input_signal)
-
-    mag_denoised = np.maximum(beta * mag_input, mag_input - alpha * mag_noise)
-
-    denoised_signal = mag_denoised * np.exp(1j * phase_input)
-    denoised_signal_T = denoised_signal.T
-
-    # --- 5. ISTFT ---
-    cleaned_data_float = manual_istft(
-        denoised_signal_T, fs=input_rate, window=window, nperseg=M, noverlap=R
-    )
-
-    max_abs_val_input = (
-        np.max(np.abs(input_data_float))
-        if np.max(np.abs(input_data_float)) > 0
-        else 1.0
-    )
-    gamma = 0.95
-    scaling_target = 32767 * gamma
-    scaling_factor = scaling_target / max_abs_val_input
-
-    cleaned_data = np.zeros_like(cleaned_data_float, dtype=np.int16)
-    cleaned_data_float_scaled = np.zeros_like(cleaned_data_float, dtype=np.float32)
-
-    if max_abs_val_input > 0:
-        cleaned_data_float_raw_scaled = cleaned_data_float * scaling_factor
-        cleaned_data_float_scaled = cleaned_data_float_raw_scaled / 32767
-        cleaned_data = np.int16(np.clip(cleaned_data_float_raw_scaled, -32767, 32767))
-
-    downloads_folder = os.path.expanduser("~/Downloads")
-    input_filename = os.path.basename(input_path)
-    output_file_path = os.path.join(downloads_folder, f"cleaned_{input_filename}")
-
-    # --- PREPARE DATA FOR GRAPH ---
-    mag_input_T = mag_input.T
-    mag_denoised_T = mag_denoised.T
-    mag_noise_T = mag_noise.T
-
-    # For a Hanning window, dividing by sum(window)/2 normalizes peak amplitude to 1.0 (0 dB)
-    norm_factor = np.sum(window) / 2
-
-    return {
-        "output_path": output_file_path,
-        "sample_rate": input_rate,
-        "original_audio": input_data_float,
-        "cleaned_audio": cleaned_data_float_scaled,
-        "noise_audio": noise_data_float,
-        "stft_freq": f,
-        "stft_time": t,
-        # [FIX] Apply normalization inside the log10 calculation
-        "original_stft_mag_db": 20 * np.log10(mag_input_T / norm_factor + 1e-9),
-        "cleaned_stft_mag_db": 20 * np.log10(mag_denoised_T / norm_factor + 1e-9),
-        "noise_stft_mag_db": 20 * np.log10(mag_noise_T / norm_factor + 1e-9),
-        "cleaned_data_int_final": cleaned_data,
-        "parameters": {"M": M, "alpha": alpha, "beta": beta},
-    }
+        # 6. Prepare Graph Data (Log conversions here)
+        return {
+            "sample_rate": rate,
+            "original_audio": input_data,
+            "cleaned_audio": cleaned_audio,
+            "noise_audio": noise_data,
+            "stft_freq": f,
+            "stft_time": t,
+            "original_mag_db": 20 * np.log10(np.abs(input_stft.T) / norm_factor + 1e-9),
+            "cleaned_mag_db": 20
+            * np.log10(np.abs(denoised_stft.T) / norm_factor + 1e-9),
+            "noise_mag_db": 20 * np.log10(np.abs(mag_noise.T) / norm_factor + 1e-9),
+        }
