@@ -3,7 +3,7 @@ from .audio_utils import read_audio, manual_stft, manual_istft
 
 
 class NoiseCanceller:
-    def process(self, input_path, noise_path, M=256, alpha=1.05, beta=0.001):
+    def process(self, input_path, noise_path, M, alpha, beta):
         """
         Performs spectral subtraction to remove noise from audio.
 

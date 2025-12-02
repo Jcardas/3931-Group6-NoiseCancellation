@@ -19,6 +19,7 @@ class App(ctk.CTk):
         self.input_path = None
         self.noise_path = None
         self.processing_results = None
+        self.current_parameters = {}
         self.processor = NoiseCanceller()
 
         # Pages container
@@ -51,6 +52,8 @@ class App(ctk.CTk):
 
     def run_processing(self, M, alpha, beta):
         """Runs processing in a separate thread"""
+
+        self.current_parameters = {"M": M, "alpha": alpha, "beta": beta}
 
         # Show loading state if you have a spinner, or disable buttons
         self.configure(cursor="watch")

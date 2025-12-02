@@ -229,6 +229,17 @@ class OutputEditorPage(ctk.CTkFrame):
         if not res:
             return
 
+        params = getattr(self.controller, "current_parameters", {})
+        if params:
+            self.m_entry.delete(0, "end")
+            self.m_entry.insert(0, str(params.get("M", 256)))
+
+            self.alpha_entry.delete(0, "end")
+            self.alpha_entry.insert(0, str(params.get("alpha", 1.05)))
+
+            self.beta_entry.delete(0, "end")
+            self.beta_entry.insert(0, str(params.get("beta", 0.001)))
+
         # Update Labels
         self.name_labels["original_audio"].configure(
             text=os.path.basename(self.controller.input_path)
