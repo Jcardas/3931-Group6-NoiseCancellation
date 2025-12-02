@@ -33,7 +33,8 @@ class App(ctk.CTk):
 
         # --- Window Setup ---
         self.title("Noise Canceller")
-        self.geometry("950x650")
+        self.geometry("1200x720")
+        self.minsize(1200, 720)
         ctk.set_appearance_mode("light")
         self.configure(fg_color=COLOR_BACKGROUND)
 
