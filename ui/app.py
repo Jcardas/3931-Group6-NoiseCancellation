@@ -8,6 +8,9 @@ from tkinter import messagebox
 from scipy.io import wavfile
 import functionality.processing as processing
 
+import sys
+import sounddevice as sd
+
 # Import the pages
 from ui.file_selection_page import FileSelectionPage
 from ui.output_editor_page import OutputEditorPage
@@ -69,11 +72,12 @@ class App(ctk.CTk):
 
     def on_closing(self):
         """
-        Handles the window close event and automatically saves cleaned audio if available.
+        Handles cleanup when the application window is closed.
         """
-        if self.processing_results:
-            self.save_files(alert_on_success=True)
+        sd.stop()
+        self.quit()
         self.destroy()
+        sys.exit()
 
     def show_page(self, page_class):
         """
