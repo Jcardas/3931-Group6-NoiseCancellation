@@ -116,9 +116,7 @@ class App(ctk.CTk):
         try:
             # Pass the file paths to the backend processing function
             results = processing.cancel_noise(
-                input_path=self.input_file,
-                noise_path=self.noise_file,
-                use_highpass=use_highpass,
+                input_path=self.input_file, noise_path=self.noise_file
             )
             # Store the results in the controller
             self.processing_results = results
