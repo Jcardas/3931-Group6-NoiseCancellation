@@ -35,6 +35,7 @@ class OutputEditorPage(ctk.CTkFrame):
         super().__init__(parent, fg_color=COLOR_BACKGROUND)
 
         sd.default.latency = "high"  # Set higher latency for more stable playback
+        sd.default.blocksize = 2048  # Set blocksize for lower CPU usage
 
         self.controller = controller
         self.graph_elements = (
@@ -133,26 +134,39 @@ class OutputEditorPage(ctk.CTkFrame):
         self.graph_frame.pack(side="left", padx=20, expand=True, fill="both")
 
     def on_show(self):
-        """
-        Called when the page is raised to the top.
-        Generates and displays the graph.
-        """
-        self.stop_playback()  # Stop any previous playback
-        # Destroy the old graph widget if it exists
+        self.stop_playback()
         if self.graph_elements:
             self.graph_elements["canvas_widget"].destroy()
 
         if self.controller.processing_results:
-            # Update the card title with the output file name
             self.input_label.configure(
                 text=os.path.basename(self.controller.processing_results["output_path"])
             )
 
-            # Call the function from graphing.py to create the graph
             self.graph_elements = create_live_freq_domain_graphs(
                 self.graph_frame, self.controller.processing_results["stft_freq"]
             )
             self.graph_elements["canvas_widget"].pack(expand=True, fill="both")
+
+            # This forces lines to cut off exactly at the axis border, so they can't smear the text.
+            for key in ["line1", "line2", "line3"]:
+                self.graph_elements[key].set_animated(True)
+                self.graph_elements[key].set_clip_on(True)
+
+            self.bg_cache = None
+            canvas = self.graph_elements["canvas"]
+
+            # If the window resizes, we MUST invalidate the cache, or it will glitch.
+            def on_resize(event):
+                self.bg_cache = None
+
+            # Bind the resize event to the canvas widget
+            canvas.get_tk_widget().bind("<Configure>", on_resize)
+
+            # Initial draw
+            canvas.draw()
+            # Cache only the plot area (ax.bbox), which is safer than the whole figure
+            self.bg_cache = canvas.copy_from_bbox(self.graph_elements["ax"].bbox)
 
     def toggle_playback(self):
         if not self.controller.processing_results:
@@ -200,32 +214,40 @@ class OutputEditorPage(ctk.CTkFrame):
 
     def update_plot(self):
         results = self.controller.processing_results
-        # Total elapsed time is the paused time plus the current playing time
         elapsed_time = self.paused_time + (time.time() - self.playback_start_time)
 
-        # Find the closest time index in the STFT data
         time_vector = results["stft_time"]
         time_index = np.searchsorted(time_vector, elapsed_time)
 
         if time_index < len(time_vector):
-            # Get the frequency data for this time slice
             original_mag = results["original_stft_mag_db"][:, time_index]
             cleaned_mag = results["cleaned_stft_mag_db"][:, time_index]
-            noise_mag = results[
-                "noise_stft_mag_db"
-            ]  # Noise profile is constant over time
+            noise_mag = results["noise_stft_mag_db"]
 
-            # Update the plot lines
             self.graph_elements["line1"].set_ydata(original_mag)
             self.graph_elements["line2"].set_ydata(cleaned_mag)
             self.graph_elements["line3"].set_ydata(noise_mag)
 
-            # Redraw the canvas
-            self.graph_elements["canvas"].draw()
+            canvas = self.graph_elements["canvas"]
+            ax = self.graph_elements["ax"]
 
-            # Schedule the next update
-            self.animation_job = self.after(
-                500, self.update_plot
-            )  # Lowered to 500 ms for performance
+            # --- FIX 3: Robust Blitting Logic ---
+            if self.bg_cache is None:
+                # If cache is missing (due to resize), redraw everything once to rebuild it
+                canvas.draw()
+                self.bg_cache = canvas.copy_from_bbox(ax.bbox)
+            else:
+                # 1. Restore the white background inside the axes
+                canvas.restore_region(self.bg_cache)
+
+                # 2. Draw the lines (now clipped safely inside)
+                ax.draw_artist(self.graph_elements["line1"])
+                ax.draw_artist(self.graph_elements["line2"])
+                ax.draw_artist(self.graph_elements["line3"])
+
+                # 3. Blit ONLY the axes box (fastest method)
+                canvas.blit(ax.bbox)
+
+            self.animation_job = self.after(30, self.update_plot)
         else:
-            self.stop_playback()  # Audio finished, so reset
+            self.stop_playback()

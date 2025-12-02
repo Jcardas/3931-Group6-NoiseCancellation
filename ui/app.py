@@ -1,7 +1,7 @@
-'''
+"""
 This is the main app window for the Noise Canceller.
 This class will instantiate the other UI pages as needed.
-'''
+"""
 
 import customtkinter as ctk
 from tkinter import messagebox
@@ -13,22 +13,24 @@ from ui.file_selection_page import FileSelectionPage
 from ui.output_editor_page import OutputEditorPage
 from ui.theme import COLOR_BACKGROUND
 
+
 # --- Main Application Class ---
 class App(ctk.CTk):
-    '''
+    """
     The main application class for the Noise Canceller GUI.
     It encapsulates all UI elements and application logic.
     This class is the CONTROLLER. It manages which view (page) is currently active.
-    '''
+    """
+
     def __init__(self):
-        '''
+        """
         Initializes the main application window and its components.
-        '''
+        """
         super().__init__()
 
         # --- Window Setup ---
         self.title("Noise Canceller")
-        self.geometry("750x520")
+        self.geometry("950x650")
         ctk.set_appearance_mode("light")
         self.configure(fg_color=COLOR_BACKGROUND)
 
@@ -39,7 +41,7 @@ class App(ctk.CTk):
         self.input_file = None
         self.noise_file = None
         self.output_file = None
-        self.processing_results = None # Will hold the dict from processing
+        self.processing_results = None  # Will hold the dict from processing
         self.current_page_class = FileSelectionPage
 
         # --- Container for Pages ---
@@ -66,27 +68,32 @@ class App(ctk.CTk):
         self.show_page(FileSelectionPage)
 
     def on_closing(self):
-        '''
+        """
         Handles the window close event and automatically saves cleaned audio if available.
-        '''
+        """
         if self.processing_results:
             self.save_files(alert_on_success=True)
         self.destroy()
-        
 
     def show_page(self, page_class):
-        '''
+        """
         Raises the specified page to the top of the view.
         :param page_class: The class of the page to show.
-        '''
+        """
         # If leaving the OutputEditorPage, prompt to save if there are unsaved changes
-        if self.current_page_class == OutputEditorPage and page_class != OutputEditorPage and self.processing_results:
+        if (
+            self.current_page_class == OutputEditorPage
+            and page_class != OutputEditorPage
+            and self.processing_results
+        ):
 
-            response = messagebox.askyesno("Save Changes", "Do you want to save the cleaned audio before leaving?")
+            response = messagebox.askyesno(
+                "Save Changes", "Do you want to save the cleaned audio before leaving?"
+            )
 
             if response:
                 self.save_files(alert_on_success=True)
-            
+
         page = self.pages[page_class]
         self.current_page_class = page_class
         # If the page has an 'on_show' method, call it.
@@ -96,18 +103,18 @@ class App(ctk.CTk):
         page.tkraise()
 
     def process_files(self, use_highpass=False):
-        '''
+        """
         Validates that both files have been selected and calls the processing function.
         Displays success or error messages to the user.
         This method is called FROM the FileSelectionPage.
-        '''
+        """
         # --- Call Processing Logic ---
         try:
             # Pass the file paths to the backend processing function
             results = processing.cancel_noise(
                 input_path=self.input_file,
                 noise_path=self.noise_file,
-                use_highpass=use_highpass
+                use_highpass=use_highpass,
             )
             # Store the results in the controller
             self.processing_results = results
@@ -119,10 +126,10 @@ class App(ctk.CTk):
             messagebox.showerror("Processing Error", str(e))
 
     def save_files(self, alert_on_success=True):
-        '''
+        """
         Saves the processed output file to the user's Downloads folder.
         This method is called FROM the OutputEditorPage.
-        '''
+        """
         try:
             output_path = self.processing_results["output_path"]
             sample_rate = self.processing_results["sample_rate"]
@@ -135,8 +142,11 @@ class App(ctk.CTk):
 
             if alert_on_success:
                 # Show success message with the output file path
-                messagebox.showinfo("Success", f"Noise cancelled!\nSaved to: {self.processing_results['output_path']}")
-            self.processing_results = None # Clear results after saving
+                messagebox.showinfo(
+                    "Success",
+                    f"Noise cancelled!\nSaved to: {self.processing_results['output_path']}",
+                )
+            self.processing_results = None  # Clear results after saving
         except Exception as e:
             # Show error message if saving fails
             messagebox.showerror("Save Error", str(e))
