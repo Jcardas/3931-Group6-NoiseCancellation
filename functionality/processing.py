@@ -10,7 +10,7 @@ from scipy.io import wavfile
 from scipy import signal
 import os
 
-M = 1024  # STFT window size
+M = 256  # STFT window size
 R = M // 2   # STFT hop size
 window = np.hanning(M)  # Hanning window
 
@@ -119,7 +119,6 @@ def manual_istft(stft_matrix_t, fs, window, nperseg, noverlap):
 
     return output_signal
 
-
 def cancel_noise(input_path, noise_path, use_highpass=False, highpass_cutoff=200):
     '''
     Reduces noise from an audio file using spectral subtraction (STFT)
@@ -206,7 +205,6 @@ def cancel_noise(input_path, noise_path, use_highpass=False, highpass_cutoff=200
     downloads_folder = os.path.expanduser("~/Downloads")
     input_filename = os.path.basename(input_path)
     output_file_path = os.path.join(downloads_folder, f"cleaned_{input_filename}")
-    wavfile.write(output_file_path, input_rate, cleaned_data)
 
     mag_input_T = mag_input.T
     mag_denoised_T = mag_denoised.T
@@ -223,6 +221,6 @@ def cancel_noise(input_path, noise_path, use_highpass=False, highpass_cutoff=200
         "stft_time": t,
         "original_stft_mag_db": 20 * np.log10(mag_input_T + 1e-9),
         "cleaned_stft_mag_db": 20 * np.log10(mag_denoised_T + 1e-9),
-        "noise_stft_mag_db": 20 * np.log10(mag_noise_T + 1e-9)
-    
+        "noise_stft_mag_db": 20 * np.log10(mag_noise_T + 1e-9),
+        "cleaned_data_int_final": cleaned_data
     }

@@ -5,6 +5,7 @@ This class will instantiate the other UI pages as needed.
 
 import customtkinter as ctk
 from tkinter import messagebox
+from scipy.io import wavfile
 import functionality.processing as processing
 
 # Import the pages
@@ -31,12 +32,15 @@ class App(ctk.CTk):
         ctk.set_appearance_mode("light")
         self.configure(fg_color=COLOR_BACKGROUND)
 
+        self.protocol("WM_DELETE_WINDOW", self.on_closing)
+
         # --- State Variables ---
         # These variables will store the paths to the selected audio files.
         self.input_file = None
         self.noise_file = None
         self.output_file = None
         self.processing_results = None # Will hold the dict from processing
+        self.current_page_class = FileSelectionPage
 
         # --- Container for Pages ---
         # This frame will hold the different pages of the application.
@@ -61,12 +65,30 @@ class App(ctk.CTk):
         # --- Show the initial page ---
         self.show_page(FileSelectionPage)
 
+    def on_closing(self):
+        '''
+        Handles the window close event and automatically saves cleaned audio if available.
+        '''
+        if self.processing_results:
+            self.save_files(alert_on_success=True)
+        self.destroy()
+        
+
     def show_page(self, page_class):
         '''
         Raises the specified page to the top of the view.
         :param page_class: The class of the page to show.
         '''
+        # If leaving the OutputEditorPage, prompt to save if there are unsaved changes
+        if self.current_page_class == OutputEditorPage and page_class != OutputEditorPage and self.processing_results:
+
+            response = messagebox.askyesno("Save Changes", "Do you want to save the cleaned audio before leaving?")
+
+            if response:
+                self.save_files(alert_on_success=True)
+            
         page = self.pages[page_class]
+        self.current_page_class = page_class
         # If the page has an 'on_show' method, call it.
         if hasattr(page, "on_show"):
             page.on_show()
@@ -90,12 +112,31 @@ class App(ctk.CTk):
             # Store the results in the controller
             self.processing_results = results
 
-            # Show success message with the output file path
-            messagebox.showinfo("Success", f"Noise cancelled!\nSaved to: {self.processing_results["output_path"]}")
-
             self.show_page(OutputEditorPage)
-
 
         except Exception as e:
             # Show a detailed error message if something goes wrong
             messagebox.showerror("Processing Error", str(e))
+
+    def save_files(self, alert_on_success=True):
+        '''
+        Saves the processed output file to the user's Downloads folder.
+        This method is called FROM the OutputEditorPage.
+        '''
+        try:
+            output_path = self.processing_results["output_path"]
+            sample_rate = self.processing_results["sample_rate"]
+
+            # Read the cleaned audio data
+            cleaned_data_int = self.processing_results["cleaned_data_int_final"]
+
+            # Save to Downloads folder
+            wavfile.write(output_path, sample_rate, cleaned_data_int)
+
+            if alert_on_success:
+                # Show success message with the output file path
+                messagebox.showinfo("Success", f"Noise cancelled!\nSaved to: {self.processing_results['output_path']}")
+            self.processing_results = None # Clear results after saving
+        except Exception as e:
+            # Show error message if saving fails
+            messagebox.showerror("Save Error", str(e))
