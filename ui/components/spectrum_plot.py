@@ -35,24 +35,20 @@ class SpectrumPlot(ctk.CTkFrame):
         self.ax.grid(True, color=COLOR_GRAPH, linestyle=":")
         self.ax.tick_params(colors=COLOR_TEXT)
 
-        # --- FIX: Custom Formatter for Hz/kHz ---
         def freq_formatter(x, pos):
             if x >= 1000:
                 return f"{int(x/1000)}kHz"
             return f"{int(x)}Hz"
 
         self.ax.xaxis.set_major_formatter(ticker.FuncFormatter(freq_formatter))
-        # ----------------------------------------
 
     def init_plot(self, frequency_data):
         """Initialize lines with frequency data (x-axis)"""
 
-        # --- FIX: Remove old lines if they exist ---
         if self.lines:
             for line in self.lines.values():
                 line.remove()
             self.lines = {}
-        # -------------------------------------------
 
         dummy_y = np.full_like(frequency_data, -100)
 
