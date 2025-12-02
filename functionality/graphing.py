@@ -69,6 +69,8 @@ def create_live_freq_domain_graphs(master, stft_freq):
         canvas = FigureCanvasTkAgg(fig, master=master)
         canvas.draw()
 
+        canvas.get_tk_widget().configure(bg=COLOR_BACKGROUND)
+
         return {
             "canvas_widget": canvas.get_tk_widget(),
             "fig": fig,
