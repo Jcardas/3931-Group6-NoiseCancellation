@@ -308,11 +308,21 @@ class OutputEditorPage(ctk.CTkFrame):
         if idx >= len(res["stft_time"]):
             idx = len(res["stft_time"]) - 1
 
+        # Determine which lines to show based on selected audio
+        if self.current_audio_key == "original_audio":
+            visible_lines = ["original"]
+        elif self.current_audio_key == "noise_audio":
+            visible_lines = ["noise"]
+        else:
+            # Show all three for comparison when cleaned output is selected
+            visible_lines = ["original", "cleaned", "noise"]
+
         # Update Component
         self.spectrum_plot.update_db(
             res["original_mag_db"][:, idx],
             res["cleaned_mag_db"][:, idx],
             res["noise_mag_db"][:, 0],  # Noise profile is constant (average)
+            visible_lines=visible_lines,
         )
 
     def update_animation(self):
@@ -329,3 +339,6 @@ class OutputEditorPage(ctk.CTkFrame):
             self.animation_job = self.after(30, self.update_animation)
         else:
             self.stop_playback()
+            self.update_graph_to_time(duration)
+            self.seek_slider.set(1)
+            self.animation_job = None

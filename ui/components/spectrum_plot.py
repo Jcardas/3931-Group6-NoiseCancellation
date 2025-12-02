@@ -100,8 +100,12 @@ class SpectrumPlot(ctk.CTkFrame):
         # This allows us to redraw ONLY the lines later, saving massive CPU power.
         self.bg_cache = self.canvas.copy_from_bbox(self.ax.bbox)
 
-    def update_db(self, original_db, cleaned_db, noise_db):
-        """Fast update using blitting"""
+    def update_db(self, original_db, cleaned_db, noise_db, visible_lines=None):
+        """
+        Fast update using blitting.
+        :param visible_lines: List of keys ('original', 'cleaned', 'noise') to display.
+                              If None, all lines are displayed.
+        """
         # If plot hasn't been initialized (cached), skip update to prevent errors
         if self.bg_cache is None:
             return
@@ -117,10 +121,16 @@ class SpectrumPlot(ctk.CTkFrame):
         self.lines["noise"].set_ydata(noise_db)
 
         # 3. Redraw Artists
-        # Efficiently redraw only the dynamic line elements
-        self.ax.draw_artist(self.lines["original"])
-        self.ax.draw_artist(self.lines["cleaned"])
-        self.ax.draw_artist(self.lines["noise"])
+        # Efficiently redraw only the requested line elements
+        if visible_lines is None:
+            # Draw all if no specific visibility is requested
+            for line in self.lines.values():
+                self.ax.draw_artist(line)
+        else:
+            # Draw only the lines specified in the list
+            for key in visible_lines:
+                if key in self.lines:
+                    self.ax.draw_artist(self.lines[key])
 
         # 4. Blit
         # Update the screen with the newly drawn changes inside the bounding box
