@@ -6,14 +6,14 @@ This class will instantiate the other UI pages as needed.
 import customtkinter as ctk
 from tkinter import messagebox
 from scipy.io import wavfile
-import functionality.processing as processing
+import core.processing as processing
 
 import sys
 import sounddevice as sd
 
 # Import the pages
-from ui.file_selection_page import FileSelectionPage
-from ui.output_editor_page import OutputEditorPage
+from ui.pages.file_selection import FileSelection
+from ui.pages.output_editor import OutputEditor
 from ui.theme import COLOR_BACKGROUND
 
 
@@ -46,7 +46,7 @@ class App(ctk.CTk):
         self.noise_file = None
         self.output_file = None
         self.processing_results = None  # Will hold the dict from processing
-        self.current_page_class = FileSelectionPage
+        self.current_page_class = FileSelection
 
         # --- Container for Pages ---
         # This frame will hold the different pages of the application.
@@ -59,17 +59,17 @@ class App(ctk.CTk):
         self.pages = {}
 
         # Create an instance of the file selection page
-        page = FileSelectionPage(parent=container, controller=self)
-        self.pages[FileSelectionPage] = page
+        page = FileSelection(parent=container, controller=self)
+        self.pages[FileSelection] = page
         page.grid(row=0, column=0, sticky="nsew")
 
         # Create an instance of the output editor page
-        page = OutputEditorPage(parent=container, controller=self)
-        self.pages[OutputEditorPage] = page
+        page = OutputEditor(parent=container, controller=self)
+        self.pages[OutputEditor] = page
         page.grid(row=0, column=0, sticky="nsew")
 
         # --- Show the initial page ---
-        self.show_page(FileSelectionPage)
+        self.show_page(FileSelection)
 
     def on_closing(self):
         """
@@ -87,8 +87,8 @@ class App(ctk.CTk):
         """
         # If leaving the OutputEditorPage, prompt to save if there are unsaved changes
         if (
-            self.current_page_class == OutputEditorPage
-            and page_class != OutputEditorPage
+            self.current_page_class == OutputEditor
+            and page_class != OutputEditor
             and self.processing_results
         ):
 
@@ -126,7 +126,7 @@ class App(ctk.CTk):
             # Store the results in the controller
             self.processing_results = results
 
-            self.show_page(OutputEditorPage)
+            self.show_page(OutputEditor)
 
         except Exception as e:
             # Show a detailed error message if something goes wrong

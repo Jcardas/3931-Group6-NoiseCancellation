@@ -11,12 +11,12 @@ import time
 import numpy as np
 import sounddevice as sd
 import os
-from .theme import *
-from ui.file_selection_page import FileSelectionPage
-from functionality.graphing import create_live_freq_domain_graphs
+from ..theme import *
+from ui.pages.file_selection import FileSelection
+from ui.components.graphing import create_live_freq_domain_graphs
 
 
-class OutputEditorPage(ctk.CTkFrame):
+class OutputEditor(ctk.CTkFrame):
     """
     A page that displays the results of the audio processing, including
     the input, noise, and cleaned audio files, with playback controls
@@ -259,7 +259,7 @@ class OutputEditorPage(ctk.CTkFrame):
     def go_back(self):
         self.stop_playback()
         self.controller.unbind("<space>")
-        self.controller.show_page(FileSelectionPage)
+        self.controller.show_page(FileSelection)
 
     def update_filter(self):
         """

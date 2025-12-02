@@ -4,11 +4,11 @@ This is the page where the user uploads an input audio file, and a noise file
 
 import customtkinter as ctk
 from tkinter import filedialog, messagebox, PhotoImage
-from .theme import *  # Import all theme constants
+from ..theme import *  # Import all theme constants
 import os
 
 
-class FileSelectionPage(ctk.CTkFrame):
+class FileSelection(ctk.CTkFrame):
     """
     A frame that contains the UI for selecting input and noise audio files.
     """
